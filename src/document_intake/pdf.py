@@ -1,4 +1,5 @@
 """Shared PDF readers. PDFKit OCR is opt-in; digital reads never invoke OCR."""
+
 import logging
 import os
 import threading
@@ -43,8 +44,7 @@ def read_pdf(path, *, max_pages=None, max_chars=None, password=None):
             total_pages = len(reader.pages)
             pages, size, truncated = [], 0, False
             for i in range(total_pages):
-                if ((max_pages is not None and i >= max_pages)
-                        or (max_chars is not None and size >= max_chars)):
+                if (max_pages is not None and i >= max_pages) or (max_chars is not None and size >= max_chars):
                     truncated = True
                     break
                 text = reader.pages[i].extract_text() or ""
@@ -64,10 +64,15 @@ def read_pdf(path, *, max_pages=None, max_chars=None, password=None):
             meta = reader.metadata
             metadata = {key: getattr(meta, key, None) for key in ("title", "author", "subject")} if meta else {}
             full_text = "\n".join(p["text_content"] for p in pages)
-            return {"filepath": str(path), "total_pages": total_pages, "pages": pages,
-                    "full_text": full_text, "metadata": metadata,
-                    "extraction_truncated": truncated,
-                    "status": "empty" if not total_pages else "ok" if full_text.strip() else "no_text"}
+            return {
+                "filepath": str(path),
+                "total_pages": total_pages,
+                "pages": pages,
+                "full_text": full_text,
+                "metadata": metadata,
+                "extraction_truncated": truncated,
+                "status": "empty" if not total_pages else "ok" if full_text.strip() else "no_text",
+            }
     except PDFReadError:
         raise
     except DependencyError as exc:
@@ -138,11 +143,14 @@ def read_pdf_native(file_path: str, max_pages: int = 25, max_chars: int = 100_00
                         tiff_data = ns_image.TIFFRepresentation()
                         if tiff_data:
                             from .vision import recognize_tokens
+
                             tokens = recognize_tokens(bytes(tiff_data))
                             if tokens:
-                                texts.append(f"--- Page {idx + 1} (Scanned OCR) ---\n" + "\n".join(t["text"] for t in tokens))
+                                texts.append(
+                                    f"--- Page {idx + 1} (Scanned OCR) ---\n" + "\n".join(t["text"] for t in tokens)
+                                )
                 except Exception as e:
-                    logger.debug(f"Failed to OCR scanned PDF page {idx+1} in {file_path}: {e}")
+                    logger.debug(f"Failed to OCR scanned PDF page {idx + 1} in {file_path}: {e}")
 
             if max_chars is not None and sum(len(t) for t in metadata + texts) >= max_chars:
                 break
@@ -152,5 +160,3 @@ def read_pdf_native(file_path: str, max_pages: int = 25, max_chars: int = 100_00
     except Exception as e:
         logger.debug(f"Native PDFKit extraction failed for {file_path}: {e}")
         return None
-
-

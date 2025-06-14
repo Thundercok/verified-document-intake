@@ -13,8 +13,15 @@ logger = logging.getLogger(__name__)
 
 
 class TesseractOCREngine:
-    def __init__(self, tesseract_cmd: str = "/opt/homebrew/bin/tesseract", *, timeout: float = 15, languages: str = "vie+eng"):
-        if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or timeout <= 0:
+    def __init__(
+        self, tesseract_cmd: str = "/opt/homebrew/bin/tesseract", *, timeout: float = 15, languages: str = "vie+eng"
+    ):
+        if (
+            isinstance(timeout, bool)
+            or not isinstance(timeout, (int, float))
+            or not math.isfinite(timeout)
+            or timeout <= 0
+        ):
             raise ValueError("timeout must be positive and finite")
         self.timeout = timeout
         self.languages = languages
@@ -36,8 +43,9 @@ class TesseractOCREngine:
         # 1. Try TSV mode for bounding boxes
         try:
             cmd_tsv = [self.tesseract_cmd, image_path, "stdout", "-l", self.languages, "--oem", "1", "tsv"]
-            res_tsv = subprocess.run(cmd_tsv, capture_output=True, text=True, timeout=self.timeout,
-                                     encoding="utf-8", errors="replace")
+            res_tsv = subprocess.run(
+                cmd_tsv, capture_output=True, text=True, timeout=self.timeout, encoding="utf-8", errors="replace"
+            )
             if res_tsv.returncode == 0 and res_tsv.stdout.strip():
                 tokens = self._parse_tsv_output(res_tsv.stdout)
                 lines_by_id = {}
@@ -45,7 +53,9 @@ class TesseractOCREngine:
                     key = (token["page_num"], token["block_num"], token["par_num"], token["line_num"])
                     lines_by_id.setdefault(key, []).append(token["text"])
                 full_text = "\n".join(" ".join(words) for words in lines_by_id.values())
-                logger.info("Tesseract TSV mode: extracted %d tokens from %s", len(tokens), os.path.basename(image_path))
+                logger.info(
+                    "Tesseract TSV mode: extracted %d tokens from %s", len(tokens), os.path.basename(image_path)
+                )
         except (subprocess.TimeoutExpired, FileNotFoundError):
             return {"full_text": "", "lines": [], "tokens": []}
         except Exception as e:
@@ -58,21 +68,20 @@ class TesseractOCREngine:
                 return {"full_text": "", "lines": [], "tokens": []}
             try:
                 cmd_text = [self.tesseract_cmd, image_path, "stdout", "-l", self.languages, "--oem", "1"]
-                res_text = subprocess.run(cmd_text, capture_output=True, text=True, timeout=remaining,
-                                          encoding="utf-8", errors="replace")
+                res_text = subprocess.run(
+                    cmd_text, capture_output=True, text=True, timeout=remaining, encoding="utf-8", errors="replace"
+                )
                 full_text = res_text.stdout if res_text.returncode == 0 else ""
-                logger.info("Tesseract text mode: extracted %d chars from %s", len(full_text), os.path.basename(image_path))
+                logger.info(
+                    "Tesseract text mode: extracted %d chars from %s", len(full_text), os.path.basename(image_path)
+                )
             except Exception as e:
                 logger.warning("Tesseract text mode also failed for %s: %s", image_path, e)
                 return {"full_text": "", "lines": [], "tokens": []}
 
         lines = [line.strip() for line in full_text.splitlines() if line.strip()]
 
-        return {
-            "full_text": full_text,
-            "lines": lines,
-            "tokens": tokens
-        }
+        return {"full_text": full_text, "lines": lines, "tokens": tokens}
 
     def _parse_tsv_output(self, tsv_text: str) -> list[dict[str, Any]]:
         """
@@ -106,17 +115,19 @@ class TesseractOCREngine:
                 if left < 0 or top < 0 or width <= 0 or height <= 0:
                     continue
 
-                tokens.append({
-                    "text": text,
-                    "confidence": conf / 100.0,  # Normalize to 0.0-1.0
-                    "bbox": [left, top, left + width, top + height],
-                    "level": int(parts[0]),
-                    "page_num": int(parts[1]),
-                    "block_num": int(parts[2]),
-                    "par_num": int(parts[3]),
-                    "line_num": int(parts[4]),
-                    "word_num": int(parts[5]),
-                })
+                tokens.append(
+                    {
+                        "text": text,
+                        "confidence": conf / 100.0,  # Normalize to 0.0-1.0
+                        "bbox": [left, top, left + width, top + height],
+                        "level": int(parts[0]),
+                        "page_num": int(parts[1]),
+                        "block_num": int(parts[2]),
+                        "par_num": int(parts[3]),
+                        "line_num": int(parts[4]),
+                        "word_num": int(parts[5]),
+                    }
+                )
             except (ValueError, IndexError):
                 continue
 

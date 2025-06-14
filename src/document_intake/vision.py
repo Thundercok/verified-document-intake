@@ -3,6 +3,7 @@
 Optional frameworks load only when OCR is requested. No Swift compilation or
 writes into installed package directories are needed.
 """
+
 import io
 import logging
 import platform
@@ -16,6 +17,7 @@ def recognize_tokens(source):
         return []
     try:
         from PIL import Image
+
         if isinstance(source, bytes):
             image_source = io.BytesIO(source)
         else:
@@ -28,6 +30,7 @@ def recognize_tokens(source):
             image.verify()
         import objc
         from Foundation import NSURL
+
         objc.loadBundle("Vision", globals(), bundle_path="/System/Library/Frameworks/Vision.framework")
         request = objc.lookUpClass("VNRecognizeTextRequest").alloc().init()
         request.setRecognitionLevel_(1)
@@ -58,8 +61,13 @@ def recognize_tokens(source):
             box = observation.boundingBox()
             x = int(box.origin.x * width)
             y = int((1 - box.origin.y - box.size.height) * height)
-            tokens.append({"text": text, "confidence": float(candidate.confidence()),
-                           "bbox": [x, y, x + int(box.size.width * width), y + int(box.size.height * height)]})
+            tokens.append(
+                {
+                    "text": text,
+                    "confidence": float(candidate.confidence()),
+                    "bbox": [x, y, x + int(box.size.width * width), y + int(box.size.height * height)],
+                }
+            )
         return tokens
     except Exception as exc:
         logger.debug("Apple Vision OCR failed: %s", exc)

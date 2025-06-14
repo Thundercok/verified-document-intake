@@ -7,9 +7,7 @@ from document_intake.pdf_text import clean_copied_text
 
 
 def test_joins_wrapped_lines_and_hyphenation_inside_a_paragraph() -> None:
-    text, joins = clean_copied_text(
-        "based on com-\nplex recurrent\nnetworks.\n\nNext paragraph."
-    )
+    text, joins = clean_copied_text("based on com-\nplex recurrent\nnetworks.\n\nNext paragraph.")
     assert text == "based on complex recurrent networks.\n\nNext paragraph."
     assert joins == 2
 
