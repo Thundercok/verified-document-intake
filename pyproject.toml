@@ -21,10 +21,14 @@ vision = [
 
 [dependency-groups]
 dev = [
+    "numpy>=2.0",
     "pillow>=10.0.0",
     "pypdf>=5.0.0",
     "pytest>=8.3.0",
     "ruff>=0.8.0",
+]
+vlm = [
+    "mlx-vlm>=0.8.1",
 ]
 
 [tool.hatch.build.targets.wheel]
