@@ -19,7 +19,7 @@ import re
 import unicodedata
 
 from .result import Check, match, mismatch, undetermined
-from .text import clean
+from .text import clean, fold_diacritics
 
 DIGIT = {
     "không": 0,
@@ -41,6 +41,9 @@ AFTER_LINH = {k: v for k, v in DIGIT.items() if v > 0} | {"tư": 4}
 LINH = {"linh", "lẻ"}
 SCALES = {"nghìn": 10**3, "ngàn": 10**3, "triệu": 10**6, "tỷ": 10**9, "tỉ": 10**9}
 TRAILING = {"đồng", "chẵn", "vnđ", "vnd", "việt", "nam"}
+# Currency suffixes carry no amount, so a mis-toned one ("đông", "chăn", "chắn") is still dropped.
+# Only these two: folding a number word is unsafe ("mười"/"mươi" and "năm"/"nam" collide).
+TRAILING_FOLDED = {"dong", "chan"}
 
 
 def _tens(tok: list[str]) -> int:
@@ -113,7 +116,7 @@ def _parse(tok: list[str], first: bool, tail: bool) -> int:
 def parse_number_words(text: str) -> int:
     """Parse Vietnamese number words to an int; raise ValueError on ill-formed input."""
     tok = clean(text).split()
-    while tok and tok[-1] in TRAILING:
+    while tok and (tok[-1] in TRAILING or fold_diacritics(tok[-1]) in TRAILING_FOLDED):
         tok.pop()
     unknown = [t for t in tok if t not in DIGIT and t not in AFTER_MUOI_TENS and t not in SCALES]
     unknown = [t for t in unknown if t not in LINH and t not in {"mười", "mươi", "trăm"}]

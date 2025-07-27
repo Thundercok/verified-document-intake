@@ -49,9 +49,17 @@ for _n in _ALL_NAMES:
 _BY_FOLD = {k: next(iter(v)) for k, v in _folded.items() if len(v) == 1}
 
 
-def _drop_prefix(tok: list[str], prefixes: tuple[tuple[str, ...], ...]) -> tuple[bool, list[str]]:
+def _drop_prefix(
+    tok: list[str], prefixes: tuple[tuple[str, ...], ...], folded: bool = False
+) -> tuple[bool, list[str]]:
+    """Strip a leading kind word. `folded` also accepts it mis-toned ("Tinh", "Tính" for "Tỉnh")."""
     for p in prefixes:
-        if tuple(tok[: len(p)]) == p and len(tok) > len(p):
+        head = tuple(tok[: len(p)])
+        if folded:
+            head, p_cmp = tuple(map(fold_diacritics, head)), tuple(map(fold_diacritics, p))
+        else:
+            p_cmp = p
+        if head == p_cmp and len(tok) > len(p):
             return True, tok[len(p) :]
     return False, tok
 
@@ -63,7 +71,8 @@ def resolve_province(text: str) -> str | None:
     resolves to "hà nam". The verifier therefore compares meaning; the value to emit is the
     canonical name, not the OCR text.
     """
-    _, tok = _drop_prefix(clean(text).split(), _PROVINCE_PREFIXES)
+    # Folding is safe here: no province name starts with a word that folds to a prefix.
+    _, tok = _drop_prefix(clean(text).split(), _PROVINCE_PREFIXES, folded=True)
     name = " ".join(tok)
     if not name:
         return None

@@ -124,3 +124,13 @@ def test_number_to_words_round_trips_through_the_parser():
     for kwargs in variants:
         for n in values:
             assert parse_number_words(number_to_words(n, **kwargs)) == n
+
+
+def test_mis_toned_currency_suffix_is_dropped_but_number_words_are_not_folded():
+    # Real OCR output (Apple Vision on handwriting-style crops): only the suffix is misread.
+    assert parse_number_words("Hai triệu bốn trăm chín mươi bốn nghìn đông./.") == 2_494_000
+    assert parse_number_words("Tám mươi ba ngàn đồng chăn./.") == 83_000
+    assert parse_number_words("Bốn trăm ba mươi bảy ngàn đồng chắn") == 437_000
+    assert parse_number_words("một trăm linh năm") == 105  # "năm" folds to "nam" but is a digit
+    with pytest.raises(ValueError):
+        parse_number_words("Bốn trăm ba mươi bày ngàn đồng")  # a misread number word stays an error

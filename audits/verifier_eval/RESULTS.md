@@ -14,14 +14,14 @@ rule-of-three 95% upper bound. Independent = err_A, err_B, err_both pooled.
 | `V_NAME` | 100.0% | <0.1% | 0.0% | 98.4% | 1.6% | 0/141 | 6.4% | 93.6% |
 | `V_DATE` | 100.0% | <0.1% | 0.0% | 93.6% | 0.4% | 0/35 | 0.0% | 100.0% |
 | `V_ID` | 100.0% | <0.1% | 0.0% | 99.2% | 0.8% | 0/70 | 0.0% | 100.0% |
-| `V_ADDR` | 49.4% | <0.1% | 50.6% | 31.0% | 3.6% | 268/320 | 0.0% | 50.5% |
-| `V_MONEY_WORDS` | 100.0% | <0.1% | 0.0% | 100.0% | 0.0% | 0/2 | 0.0% | 100.0% |
+| `V_ADDR` | 49.4% | <0.1% | 50.6% | 31.3% | 4.0% | 311/363 | 0.0% | 50.5% |
+| `V_MONEY_WORDS` | 100.0% | <0.1% | 0.0% | 100.0% | 0.0% | 0/3 | 0.0% | 100.0% |
 | `V_CCCD_YEAR` | 100.0% | <0.1% | 0.0% | 83.1% | 16.7% | 0/1500 | 0.0% | 100.0% |
 | `V_CCCD_SEX` | 100.0% | <0.1% | 0.0% | 42.9% | 38.6% | 1755/3473 | 0.0% | 100.0% |
-| `V_CCCD_PROVINCE` | 100.0% | <0.1% | 0.0% | 44.2% | 26.2% | 1047/2354 | 0.0% | 100.0% |
+| `V_CCCD_PROVINCE` | 100.0% | <0.1% | 0.0% | 44.3% | 29.7% | 1280/2674 | 0.0% | 100.0% |
 | `V_CCCD_FORMAT` | 100.0% | <0.1% | 0.0% | 62.6% | 37.4% | 0/1123 | 62.4% | 37.6% |
 | `V_MST` | 100.0% | <0.1% | 0.0% | 96.6% | 3.4% | 0/102 | 97.2% | 2.8% |
-| `V_WORDS_GRAMMAR` | 100.0% | <0.1% | 0.0% | 97.0% | 3.0% | 0/90 | 96.8% | 3.2% |
+| `V_WORDS_GRAMMAR` | 100.0% | <0.1% | 0.0% | 97.0% | 3.0% | 0/91 | 96.4% | 3.6% |
 | `V_ID+CCCD` | 100.0% | <0.1% | 0.0% | 99.8% | 0.2% | 0/15 | 51.7% | 48.3% |
 
 ## At 5% error prevalence
@@ -38,7 +38,7 @@ wrong. Both computed from the rates above, for independent and for consistent er
 | `V_MONEY_WORDS` | 100.0% | 0.0% | 5.0% |
 | `V_CCCD_YEAR` | 100.0% | 0.9% | 5.0% |
 | `V_CCCD_SEX` | 100.0% | 2.0% | 5.0% |
-| `V_CCCD_PROVINCE` | 100.0% | 1.4% | 5.0% |
+| `V_CCCD_PROVINCE` | 100.0% | 1.5% | 5.0% |
 | `V_CCCD_FORMAT` | 100.0% | 1.9% | 1.9% |
 | `V_MST` | 100.0% | 0.2% | 0.1% |
 | `V_WORDS_GRAMMAR` | 100.0% | 0.2% | 0.2% |
@@ -51,14 +51,14 @@ wrong. Both computed from the rates above, for independent and for consistent er
 | `V_NAME` | 100.0% | 100.0% | 95.3% | 6.4% | CCCD (capitals) vs form |
 | `V_DATE` | 93.6% | 90.5% | 96.9% | 0.0% | CCCD dd/mm/yyyy vs form or khai sinh (any style, incl. words) |
 | `V_ID` | 100.0% | 100.0% | 97.7% | 0.0% | CCCD number on card vs form |
-| `V_ADDR` | 30.6% | 34.8% | 27.4% | 0.0% | pre-2025 card address vs form (half same era, half post-2025) |
+| `V_ADDR` | 30.6% | 34.8% | 28.6% | 0.0% | pre-2025 card address vs form (half same era, half post-2025) |
 | `V_MONEY_WORDS` | 100.0% | 100.0% | 99.9% | 0.0% | amount in digits vs in words, same invoice |
 | `V_CCCD_YEAR` | 72.1% | 81.9% | 95.2% | 0.0% | CCCD digits 4-6 vs date of birth |
 | `V_CCCD_SEX` | 63.8% | 0.0% | 64.8% | 0.0% | CCCD digit 4 vs sex |
-| `V_CCCD_PROVINCE` | 67.8% | 0.0% | 64.8% | 0.0% | CCCD digits 1-3 vs place of birth registration (either era) |
+| `V_CCCD_PROVINCE` | 67.8% | 0.0% | 65.2% | 0.0% | CCCD digits 1-3 vs place of birth registration (either era) |
 | `V_CCCD_FORMAT` | 62.6% | — | — | 62.4% | CCCD alone (no check digit) |
 | `V_MST` | 96.6% | — | — | 97.2% | org tax code alone (mod-11) |
-| `V_WORDS_GRAMMAR` | 97.0% | — | — | 96.8% | amount in words alone: does it parse? |
+| `V_WORDS_GRAMMAR` | 97.0% | — | — | 96.4% | amount in words alone: does it parse? |
 | `V_ID+CCCD` | 100.0% | 100.0% | 99.5% | 51.7% | V_ID plus CCCD structure/year/sex/province on both copies |
 
 ## Missed independent errors, by edit
@@ -66,12 +66,12 @@ wrong. Both computed from the rates above, for independent and for consistent er
 - `V_NAME`: `A:diacritic_drop` 49, `B:diacritic_drop` 49, `A:syllable_drop` 36, `B:syllable_drop` 36, `A:space_merge` 27, `B:space_merge` 27, `A:letter_drop` 11, `B:letter_drop` 11, `A:tone_change` 9, `B:tone_change` 9, `A:tone_add` 9, `B:tone_add` 9
 - `V_DATE`: `A:digit_transpose` 18, `B:digit_transpose` 18, `A:digit_confusion` 8, `B:digit_confusion` 7, `A:digit_delete` 5, `B:syllable_drop` 4, `A:digit_duplicate` 4, `B:digit_delete` 3, `B:digit_duplicate` 3
 - `V_ID`: `A:digit_delete` 29, `B:digit_delete` 29, `A:digit_transpose` 15, `B:digit_transpose` 15, `A:digit_duplicate` 14, `B:digit_duplicate` 14, `A:digit_confusion` 12, `B:digit_confusion` 12
-- `V_ADDR`: `A:tone_add` 70, `B:tone_add` 66, `B:diacritic_drop` 45, `A:diacritic_drop` 35, `B:tone_change` 30, `A:tone_change` 23, `A:syllable_drop` 21, `A:digit_confusion` 19, `B:digit_confusion` 19, `A:digit_duplicate` 13, `B:digit_duplicate` 13, `B:syllable_drop` 12, `B:digit_transpose` 6, `A:digit_transpose` 5, `A:digit_delete` 3, `B:digit_delete` 2, `A:space_merge` 1, `B:space_merge` 1
-- `V_MONEY_WORDS`: `B:syllable_drop` 2, `A:digit_transpose` 1, `A:digit_delete` 1
+- `V_ADDR`: `A:tone_add` 70, `B:tone_add` 68, `A:tone_change` 54, `B:diacritic_drop` 46, `B:tone_change` 41, `A:diacritic_drop` 37, `A:syllable_drop` 21, `A:digit_confusion` 19, `B:digit_confusion` 19, `A:digit_duplicate` 13, `B:digit_duplicate` 13, `B:syllable_drop` 12, `B:digit_transpose` 6, `A:digit_transpose` 5, `A:digit_delete` 3, `B:digit_delete` 2, `A:space_merge` 1, `B:space_merge` 1
+- `V_MONEY_WORDS`: `B:syllable_drop` 3, `A:digit_confusion` 1, `A:digit_delete` 1, `A:digit_transpose` 1
 - `V_CCCD_YEAR`: `A:digit_confusion` 526, `A:digit_transpose` 449, `B:digit_delete` 134, `B:digit_duplicate` 123, `B:digit_confusion` 118, `B:syllable_drop` 85, `B:digit_transpose` 65, `B:tone_change` 65, `B:letter_drop` 56, `B:space_merge` 18
 - `V_CCCD_SEX`: `B:tone_add` 1009, `A:digit_confusion` 914, `A:digit_transpose` 804, `B:diacritic_drop` 710, `B:tone_change` 669
-- `V_CCCD_PROVINCE`: `A:digit_transpose` 670, `A:digit_confusion` 637, `B:tone_change` 449, `B:tone_add` 396, `B:diacritic_drop` 382, `B:syllable_drop` 143, `B:space_merge` 14, `B:letter_drop` 3
+- `V_CCCD_PROVINCE`: `B:tone_change` 730, `A:digit_transpose` 706, `A:digit_confusion` 688, `B:diacritic_drop` 421, `B:tone_add` 396, `B:syllable_drop` 143, `B:space_merge` 14, `B:letter_drop` 3
 - `V_CCCD_FORMAT`: `digit_confusion` 590, `digit_transpose` 533
 - `V_MST`: `digit_confusion` 56, `digit_transpose` 46
-- `V_WORDS_GRAMMAR`: `syllable_drop` 90
+- `V_WORDS_GRAMMAR`: `syllable_drop` 91
 - `V_ID+CCCD`: `A:digit_transpose` 10, `B:digit_transpose` 10, `A:digit_confusion` 5, `B:digit_confusion` 5

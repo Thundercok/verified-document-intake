@@ -90,3 +90,14 @@ def test_compare_addresses_missing_parts_are_undetermined():
     assert compare_addresses("Phường 5, TP HCM", "Phường 5, Quận 3, TP HCM").verdict is Verdict.UNDETERMINED
     assert compare_addresses("Phường Bàn Cờ, TP HCM", "TP HCM").verdict is Verdict.UNDETERMINED
     assert compare_addresses("Atlantis", "TP HCM").verdict is Verdict.UNDETERMINED
+
+
+def test_mis_toned_province_prefix_still_resolves():
+    from document_intake.verify import parse_address, resolve_province
+
+    # Real OCR output: "Tỉnh" read without or with the wrong tone.
+    assert resolve_province("Tinh Ninh Bình") == "ninh bình"
+    assert resolve_province("Tính Vĩnh Phúc") == "vĩnh phúc"
+    a = parse_address("Ấp 4, Xã Tân Thành, Huyện Thanh Trì, Tinh Lạng Sơn")
+    assert (a.commune, a.district, a.province) == ("tân thành", "thanh trì", "lạng sơn")
+    assert resolve_province("Tinh Thừ a Thiên Kuế") is None  # a misread name is not guessed
