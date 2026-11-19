@@ -1,0 +1,28 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.dylib
+
+# Environments & caches
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.env
+.env.*
+
+# Build & packaging
+build/
+dist/
+*.egg-info/
+
+# OS files
+.DS_Store
+
+# Sensitive / raw document scans (NEVER commit real citizen records or PII!)
+data/private/
+data/raw_scans/
+experiments/runs/*/raw_outputs.jsonl
