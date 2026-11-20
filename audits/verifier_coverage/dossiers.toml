@@ -37,27 +37,36 @@ fields = ["ho_ten", "so_dinh_danh", "ngay_sinh", "gioi_tinh", "quoc_tich", "que_
 note = """Card issued since 1/7/2024 (TT 16/2024/TT-BCA): front = ảnh, số định danh, họ tên,
 ngày sinh, giới tính, quốc tịch; back = nơi cư trú, nơi đăng ký khai sinh, ngày cấp,
 ngày hết hạn, QR, chip. Older CCCD (2016/2021) prints quê quán and nơi thường trú instead.
-Gender and nationality on the new front are from prior knowledge, not re-verified."""
+Bilingual Giới tính/Sex and Quốc tịch/Nationality confirmed by one press source (sggp.org.vn,
+2026-11-20 check); the TT 16/2024 annex itself was not read."""
 source = "https://hatinh.gov.vn/vi/bai-viet/chinh-thuc-co-mau-the-can-cuoc-moi-ap-dung-tu-ngay-0172024"
 
 [anchors.cccd_chip]
 title = "CCCD / thẻ căn cước chip (NFC, ICAO 9303, passive authentication)"
 record = "cccd"
 fields = ["ho_ten", "so_dinh_danh", "ngay_sinh", "gioi_tinh", "quoc_tich", "dan_toc",
-          "ton_giao", "que_quan", "noi_thuong_tru", "ho_ten_cha", "ho_ten_me",
-          "ho_ten_vo_chong", "ngay_cap", "ngay_het_han"]
-note = """Field list from a provincial guide listing what a chip reader displays (DG13).
-Whether the old 9-digit CMND number is in DG13 is unconfirmed, so it is not mapped.
+          "ton_giao", "que_quan", "noi_thuong_tru", "dac_diem_nhan_dang", "ngay_cap",
+          "ngay_het_han", "ho_ten_cha", "ho_ten_me", "ho_ten_vo_chong", "so_cmnd_cu"]
+note = """DG13 has no public Vietnamese spec (ICAO 9303 leaves it to the issuer). Field order from
+a community parser (react-native-nfc-passport, Dg13Parser.kt, observed on 2021 CCCD):
+1 idNumber, 2 fullName, 3 dateOfBirth, 4 gender, 5 nationality, 6 ethnicity, 7 religion,
+8 placeOfOrigin, 9 placeOfResidence, 10 personalIdentification (usually empty), 11 issue,
+12 expiry, 13 father/mother (either may be empty), 14 spouse, 15 oldIdNumber (9 or 12 digits).
+The parser says 2024 cards keep the indices but 8/9 then hold nơi đăng ký khai sinh / nơi cư
+trú, and family, spouse and old-ID fields may be empty. Matches the provincial reader guide.
 QĐ 1091/QĐ-BTTTT: readers must not store data read from the chip."""
-source = "https://sontrung.huongson.hatinh.gov.vn/portal/DinhKemTinBai/2023-03/3. HD sử dụng 07 phương thức_100536.pdf"
+source = "https://github.com/ducnq2398/react-native-nfc-passport/blob/master/android/src/main/java/com/nfcpassport/parser/Dg13Parser.kt"
 
 [anchors.giay_khai_sinh]
 title = "Giấy khai sinh (copy)"
 record = "khai_sinh"
 fields = ["ho_ten", "gioi_tinh", "ngay_sinh", "noi_sinh", "que_quan", "dan_toc", "quoc_tich",
-          "so_dinh_danh", "ho_ten_me", "nam_sinh_me", "ho_ten_cha", "nam_sinh_cha"]
-note = """TT 04/2020/TT-BTP: name in capitals, DOB in digits and words. Parent name/year rows
-are from prior knowledge of the template; verify against the TT 04/2020 annex."""
+          "so_dinh_danh", "ho_ten_me", "nam_sinh_me", "dan_toc_me", "quoc_tich_me", "noi_cu_tru_me",
+          "ho_ten_cha", "nam_sinh_cha", "dan_toc_cha", "quoc_tich_cha", "noi_cu_tru_cha"]
+note = """TT 04/2020/TT-BTP: name in capitals, DOB in digits and words. Each parent: họ tên, năm
+sinh, dân tộc, quốc tịch, nơi cư trú (confirmed by luatvietnam.vn summary of the template,
+2026-11-20). Parents' nơi cư trú is as of the birth, often decades before a job dossier, so
+it is NOT mapped to the sơ yếu lý lịch "chỗ ở hiện nay" fields: `may_differ` would overstate it."""
 source = "https://luatvietnam.vn/bieu-mau/mau-giay-khai-sinh-571-32603-article.html"
 
 [anchors.gcn_cho_o]
@@ -210,6 +219,8 @@ map = [
   { section = "Chủ thể", label = "Số định danh cá nhân", anchor = "cccd_print", field = "so_dinh_danh", match = "exact" },
   { section = "Chủ thể", label = "Số định danh cá nhân", anchor = "cccd_chip", field = "so_dinh_danh", match = "exact" },
   { section = "Chủ thể", label = "Số định danh cá nhân", anchor = "csdl_dan_cu", field = "so_dinh_danh", match = "exact" },
+  { section = "Chủ thể", label = "Số chứng minh nhân dân 09 số", anchor = "cccd_chip", field = "so_cmnd_cu", match = "may_differ" },
+  { section = "Chủ thể", label = "Nơi đăng ký khai sinh", anchor = "cccd_chip", field = "que_quan", match = "may_differ" },
   { section = "Chủ thể", label = "Dân tộc", anchor = "cccd_chip", field = "dan_toc", match = "exact" },
   { section = "Chủ thể", label = "Tôn giáo", anchor = "cccd_chip", field = "ton_giao", match = "exact" },
   { section = "Chủ thể", label = "Quốc tịch", anchor = "cccd_print", field = "quoc_tich", match = "exact" },
@@ -256,12 +267,21 @@ map = [
 [[dossier]]
 form_id = "giay_uy_quyen"
 procedure = "Công chứng giấy / hợp đồng ủy quyền"
-legal_basis = "Luật Công chứng 2024 (46/2024/QH15), effective 1/7/2025"
+legal_basis = "Luật Công chứng 2024 (46/2024/QH15) Điều 42 k1 điểm b, Điều 67 k1, Điều 68 k2; amended by Luật 04/2026/QH16 (from 1/1/2027)"
 source_url = "https://caselaw.vn/van-ban-phap-luat/411477-luat-cong-chung-so-46-2024-qh15-ngay-26-11-2024-cua-quoc-hoi"
-note = """The notarial file keeps a copy of each party's ID document (a plain photocopy suffices
-under the 2024 law) or a printout from CSDL dân cư (Điều 69 refers to such printouts). Either
-way a printed anchor is archived with the form. For plain chứng thực chữ ký (NĐ 23/2015)
-the card is only presented; that case is the live_scan scenario."""
+note = """Verified against the law text (2026-11-20):
+- Điều 42 k1 b (2024): the dossier includes "Bản sao giấy tờ tùy thân ... gồm: thẻ căn cước hoặc
+  hộ chiếu". If the office extracts the data from CSDL dân cư, the paper is waived (for a fee).
+- Điều 67 k1: the hồ sơ công chứng keeps "bản sao các giấy tờ mà người yêu cầu công chứng đã nộp"
+  AND "bản in các thông tin ... đã khai thác từ Cơ sở dữ liệu quốc gia về dân cư". So either a
+  card copy or a printed database extract is archived. Not amended in 2026.
+- Điều 68 k2: kept >=30 years (real estate) or 10 years (other), so a real backlog exists.
+- Luật 04/2026 (from 1/1/2027): item b drops "Bản sao"; copies may be paper or electronic, and
+  new k7a lets the requester skip papers when the data already exists. Post-2027 files may hold
+  the anchor digitally rather than on paper; the audit's archived scenario targets the backlog.
+- General ủy quyền is not among the 6 transaction types de-mandated from 1/1/2027 (only three
+  narrow ủy quyền cases are).
+For plain chứng thực chữ ký (NĐ 23/2015) the card is only presented: live_scan scenario."""
 anchors = [
   { anchor = "cccd_print", channel = "submitted" },
   { anchor = "csdl_dan_cu", channel = "gov_db" },

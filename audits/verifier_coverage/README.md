@@ -81,12 +81,43 @@ Under the conservative rule (strong only): 16.5% single-form, 38.8% archived_typ
 
 ## Caveats specific to direction A
 
-- **Dossier composition comes from secondary sources** (provincial portals, the national DVC portal, law-firm blogs). In particular, the claim that a notarial file keeps ID copies under Luật Công chứng 2024 was not checked against the article text. The law also allows a printout from CSDL dân cư, which would be a printed anchor too. Giấy ủy quyền's 91% rests on this.
+- **Dossier composition mostly comes from secondary sources** (provincial portals, the national DVC portal, law-firm blogs). The exception is the notarial file, which was checked against the law text (next section).
 - **The job-dossier copies are convention, not law.** `archived_typical` passes the threshold only because of them and the notarial file. `archived_min` alone is borderline (37.9%).
-- **Anchor fields from memory.** The parent rows of the giấy khai sinh template and the gender/nationality fields on the new card front were not re-verified. The chip field list comes from a provincial guide, not from a technical spec.
+- **Chip DG13 has no public spec.** The field list comes from a community parser plus a provincial guide, and was not checked against real cards.
+- **The new card's front was not read from the TT 16/2024 annex.** That gender and nationality are printed on it is confirmed by a single press source.
 - **`exact` assumes entity linking is solved.** The system must know which card belongs to which person block (requester vs. subject, bên ủy quyền 1 vs. 2). That linking is itself a task and can fail.
 - **Ground truth changes meaning.** If a citizen wrote the wrong DOB, the cross-check flags a mismatch and the field goes to a human. That is the right outcome for data quality, but it counts as "abstain" in a pure OCR-accuracy metric.
 - **The earlier single-form numbers are slightly optimistic for individuals' tax codes.** Since 1/7/2025 an individual's MST is the 12-digit số định danh (TT 86/2024/TT-BTC), which has no mod-11 check digit. `V_MST_CHECKSUM` applies only to organisations' MSTs.
+
+## Assumption check (2026-11-20)
+
+Three assumptions carried most of the GO. All three hold, and the audit numbers did not change after re-encoding (RESULTS.md is byte-identical).
+
+| Assumption | Result | Evidence |
+|---|---|---|
+| The notarial file archives each party's ID | **Holds** | Luật Công chứng 2024 (details below) |
+| The giấy khai sinh states each parent's name and year of birth | **Holds** | luatvietnam.vn summary of the TT 04/2020 template |
+| The CCCD chip carries ethnicity, religion, parents and spouse | **Holds** (community-verified) | react-native-nfc-passport `Dg13Parser.kt` |
+
+**Notarial file.** Checked against the text of Luật Công chứng 2024 ([caselaw.vn](https://caselaw.vn/van-ban-phap-luat/411477-luat-cong-chung-so-46-2024-qh15-ngay-26-11-2024-cua-quoc-hoi)):
+- Điều 42 k1 b puts "bản sao giấy tờ tùy thân (thẻ căn cước hoặc hộ chiếu)" in the dossier. The paper copy is waived only if the office extracts the data from CSDL dân cư.
+- Điều 67 k1 makes the archived file keep both the submitted copies and the "bản in các thông tin … đã khai thác từ Cơ sở dữ liệu quốc gia về dân cư". So a printed anchor is archived either way.
+- Điều 68 k2 sets retention at ≥30 years for real-estate files and 10 years for others.
+
+The amending law, [Luật 04/2026/QH16](https://luatvietnam.vn/tu-phap/luat-cong-chung-sua-doi-2026-so-04-2026-qh16-434608-d1.html) (from 1/1/2027), changes two things:
+- It drops "Bản sao" from item b, and the documents may be paper or electronic. Files from 2027 on may therefore hold the anchor digitally.
+- A new k7a lets the requester skip papers when the data already exists.
+
+The audit's archived scenario targets the existing paper backlog, which is unaffected. A general ủy quyền is not among the 6 transaction types de-mandated in 2027.
+
+**Giấy khai sinh.** Each parent's họ tên, năm sinh, dân tộc, quốc tịch and nơi cư trú are on the TT 04/2020 template, so the sơ yếu lý lịch parent rows are verifiable. Parents' nơi cư trú is deliberately *not* mapped to the sơ yếu lý lịch "chỗ ở hiện nay": it dates from the birth, decades earlier.
+
+**CCCD chip.** [react-native-nfc-passport `Dg13Parser.kt`](https://github.com/ducnq2398/react-native-nfc-passport/blob/master/android/src/main/java/com/nfcpassport/parser/Dg13Parser.kt) decodes 15 indexed fields: ID, name, DOB, gender, nationality, ethnicity, religion, quê quán, nơi thường trú, identifying features, issue, expiry, father/mother, spouse and old CMND number.
+- On 2024 cards, indices 8 and 9 hold nơi đăng ký khai sinh and nơi cư trú instead.
+- The family and old-ID fields may be empty on those cards.
+- The newly mapped old-CMND field is non-critical, so the headline does not move.
+
+**What did change.** Since 1/1/2026, đăng ký kết hôn no longer needs a marital-status certificate when registering where one party resides (NQ 66.7/2025). The *tờ khai xác nhận hôn nhân* form will therefore become rarer in new intake. Archived files still contain it.
 
 ## Implication for the paper
 
