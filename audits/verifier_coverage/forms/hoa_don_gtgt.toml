@@ -1,0 +1,32 @@
+form_id = "hoa_don_gtgt"
+title = "HÓA ĐƠN GIÁ TRỊ GIA TĂNG (nội dung bắt buộc, Điều 10 NĐ 123/2020)"
+legal_basis = "Nghị định 123/2020/NĐ-CP Điều 10 (amended by NĐ 70/2025; verify)"
+source_url = "https://ketoanleanh.edu.vn/kinh-nghiem-ke-toan/quy-dinh-ve-noi-dung-cua-hoa-don-dien-tu.html"
+extraction = "legal list of mandatory contents, not a blank form; seller/buyer items split into name/address/MST"
+
+fields = [
+  { label = "Ký hiệu mẫu số, ký hiệu hóa đơn", section = "Header", type = "doc_number" },
+  { label = "Số hóa đơn", section = "Header", type = "doc_number" },
+  { label = "Tên người bán", section = "Người bán", type = "organization_name" },
+  { label = "Địa chỉ người bán", section = "Người bán", type = "address" },
+  { label = "Mã số thuế người bán", section = "Người bán", type = "tax_code" },
+  { label = "Tên người mua", section = "Người mua", type = "organization_name" },
+  { label = "Địa chỉ người mua", section = "Người mua", type = "address" },
+  { label = "Mã số thuế người mua", section = "Người mua", type = "tax_code" },
+  { label = "Tên hàng hóa, dịch vụ", section = "Dòng hàng", type = "free_text", note = "table column" },
+  { label = "Đơn vị tính", section = "Dòng hàng", type = "free_text", note = "table column" },
+  { label = "Số lượng", section = "Dòng hàng", type = "quantity", hints = ["arith"], note = "qty x price = amount" },
+  { label = "Đơn giá", section = "Dòng hàng", type = "money_number", hints = ["arith"] },
+  { label = "Thành tiền chưa có thuế", section = "Dòng hàng", type = "money_number", hints = ["arith"] },
+  { label = "Thuế suất GTGT", section = "Dòng hàng", type = "tax_rate" },
+  { label = "Tiền thuế theo từng thuế suất", section = "Tổng", type = "money_number", hints = ["arith"] },
+  { label = "Tổng cộng tiền thuế GTGT", section = "Tổng", type = "money_number", hints = ["arith"] },
+  { label = "Tổng tiền thanh toán (bằng số)", section = "Tổng", type = "money_number", hints = ["arith", "words_pair"] },
+  { label = "Tổng tiền thanh toán (bằng chữ)", section = "Tổng", type = "money_words", hints = ["words_pair"] },
+  { label = "Chữ ký người bán / người mua", section = "Ký", type = "signature" },
+  { label = "Dấu người bán", section = "Ký", type = "stamp" },
+  { label = "Thời điểm lập hóa đơn", section = "Ký", type = "date" },
+  { label = "Thời điểm ký số", section = "Ký", type = "date" },
+  { label = "Mã của cơ quan thuế", section = "Header", type = "doc_number" },
+  { label = "Phí, lệ phí, chiết khấu, khuyến mại", section = "Tổng", type = "money_number", hints = ["arith"] },
+]

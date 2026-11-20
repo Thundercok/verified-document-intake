@@ -1,0 +1,40 @@
+form_id = "giay_uy_quyen"
+title = "GIẤY ỦY QUYỀN (cá nhân cho cá nhân, mẫu số 1)"
+legal_basis = "none (cites Bộ luật Dân sự 2015)"
+source_url = "https://luatvietnam.vn/bieu-mau/mau-giay-uy-quyen-ca-nhan-cho-ca-nhan-571-19497-article.html"
+extraction = "verbatim page text"
+
+fields = [
+  { label = "Hôm nay, ngày ... tháng ... năm ..., tại", section = "Mở đầu", type = "date" },
+  { label = "Ông", section = "Bên ủy quyền 1", type = "person_name" },
+  { label = "Sinh năm", section = "Bên ủy quyền 1", type = "year", hints = ["cccd_cross"], note = "gender printed ('Ông')" },
+  { label = "CMND/CCCD/Hộ chiếu số", section = "Bên ủy quyền 1", type = "id_number", hints = ["cccd_cross"] },
+  { label = "do ... cấp", section = "Bên ủy quyền 1", type = "issuing_authority" },
+  { label = "cấp ngày", section = "Bên ủy quyền 1", type = "date" },
+  { label = "Hộ khẩu thường trú", section = "Bên ủy quyền 1", type = "address" },
+  { label = "Cùng vợ là bà", section = "Bên ủy quyền 2", type = "person_name" },
+  { label = "Sinh năm", section = "Bên ủy quyền 2", type = "year", hints = ["cccd_cross"] },
+  { label = "CMND/CCCD/Hộ chiếu số", section = "Bên ủy quyền 2", type = "id_number", hints = ["cccd_cross"] },
+  { label = "do ... cấp", section = "Bên ủy quyền 2", type = "issuing_authority" },
+  { label = "cấp ngày", section = "Bên ủy quyền 2", type = "date" },
+  { label = "Hộ khẩu thường trú", section = "Bên ủy quyền 2", type = "address" },
+  { label = "Ông/bà", section = "Bên được ủy quyền", type = "person_name", hints = ["repeat_copy"], note = "copied 5 more times in Điều 1-4 and II" },
+  { label = "Sinh năm", section = "Bên được ủy quyền", type = "year", hints = ["cccd_cross"], note = "gender only via 'Ông/bà' choice" },
+  { label = "CMND/CCCD/Hộ chiếu số", section = "Bên được ủy quyền", type = "id_number", hints = ["cccd_cross"] },
+  { label = "do ... cấp", section = "Bên được ủy quyền", type = "issuing_authority" },
+  { label = "cấp ngày", section = "Bên được ủy quyền", type = "date" },
+  { label = "Hộ khẩu thường trú", section = "Bên được ủy quyền", type = "address" },
+  { label = "Điều 1. Căn cứ ủy quyền", section = "Nội dung", type = "free_text" },
+  { label = "ông/bà (Điều 1)", section = "Nội dung", type = "person_name", hints = ["repeat_copy"] },
+  { label = "Điều 2. Phạm vi ủy quyền - Ông/bà", section = "Nội dung", type = "person_name", hints = ["repeat_copy"] },
+  { label = "đại diện cho chúng tôi (phạm vi)", section = "Nội dung", type = "free_text" },
+  { label = "Trong phạm vi uỷ quyền, ông/bà", section = "Nội dung", type = "person_name", hints = ["repeat_copy"] },
+  { label = "Điều 3. Thù lao ủy quyền", section = "Nội dung", type = "money_number" },
+  { label = "Điều 4. Thời hạn ủy quyền - ông/bà", section = "Nội dung", type = "person_name", hints = ["repeat_copy"] },
+  { label = "ông (cam kết)", section = "Cam kết", type = "person_name", hints = ["repeat_copy"] },
+  { label = "lập thành ... bản", section = "Cam kết", type = "quantity", hints = ["repeat_copy"], note = "repeated by '... Bản chính'" },
+  { label = "mỗi bên giữ ... bản", section = "Cam kết", type = "quantity", hints = ["repeat_copy"] },
+  { label = "lập thành ... Bản chính", section = "Cam kết", type = "quantity", hints = ["repeat_copy"] },
+  { label = "mỗi bên giữ ... bản chính", section = "Cam kết", type = "quantity", hints = ["repeat_copy"] },
+  { label = "Người ủy quyền", section = "Ký", type = "signature" },
+]

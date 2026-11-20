@@ -1,0 +1,48 @@
+form_id = "cc01_can_cuoc"
+title = "PHIẾU THU NHẬN THÔNG TIN CĂN CƯỚC (CC01)"
+legal_basis = "Thông tư 118/2026/TT-BCA (as stated on page)"
+source_url = "https://luatvietnam.vn/bieu-mau/mau-phieu-thu-nhan-thong-tin-can-cuoc-moi-nhat-571-103311-article.html"
+extraction = "verbatim page text; 14 biometric slots collapsed into one non-text entry"
+
+fields = [
+  { label = "Mã số, mã vạch", section = "", type = "barcode" },
+  { label = "Ảnh khuôn mặt", section = "", type = "photo" },
+  { label = "Họ, chữ đệm và tên khai sinh", section = "Chủ thể", type = "person_name" },
+  { label = "Tên gọi khác", section = "Chủ thể", type = "person_name" },
+  { label = "Ngày, tháng, năm sinh", section = "Chủ thể", type = "date", hints = ["cccd_cross"] },
+  { label = "Giới tính", section = "Chủ thể", type = "gender", hints = ["cccd_cross"] },
+  { label = "Số định danh cá nhân", section = "Chủ thể", type = "id_number", hints = ["cccd_cross", "cccd_province"] },
+  { label = "Số chứng minh nhân dân 09 số", section = "Chủ thể", type = "id_number_legacy" },
+  { label = "Dân tộc", section = "Chủ thể", type = "ethnicity" },
+  { label = "Tôn giáo", section = "Chủ thể", type = "religion" },
+  { label = "Quốc tịch", section = "Chủ thể", type = "nationality" },
+  { label = "Nơi sinh", section = "Chủ thể", type = "place_name" },
+  { label = "Nơi đăng ký khai sinh", section = "Chủ thể", type = "place_name", hints = ["cccd_province"], note = "CCCD digits 1-3 = province of birth registration" },
+  { label = "Quê quán", section = "Chủ thể", type = "place_name" },
+  { label = "Nơi thường trú", section = "Chủ thể", type = "address" },
+  { label = "Nơi tạm trú", section = "Chủ thể", type = "address" },
+  { label = "Nơi ở hiện tại", section = "Chủ thể", type = "address" },
+  { label = "Nghề nghiệp", section = "Chủ thể", type = "occupation" },
+  { label = "Nhóm máu", section = "Chủ thể", type = "blood_type" },
+  { label = "Số thuê bao di động", section = "Chủ thể", type = "phone" },
+  { label = "Địa chỉ thư điện tử", section = "Chủ thể", type = "email" },
+  { label = "Họ, chữ đệm và tên khai sinh", section = "Thân nhân (bảng)", type = "person_name", note = "table column" },
+  { label = "Mối quan hệ với chủ thể thông tin", section = "Thân nhân (bảng)", type = "relation", note = "table column" },
+  { label = "Quốc tịch", section = "Thân nhân (bảng)", type = "nationality", note = "table column" },
+  { label = "Số CMND 9 số", section = "Thân nhân (bảng)", type = "id_number_legacy", note = "table column" },
+  { label = "Số định danh cá nhân", section = "Thân nhân (bảng)", type = "id_number", note = "table column; no DOB/gender in row" },
+  { label = "Đặc điểm nhân dạng", section = "", type = "free_text" },
+  { label = "Loại cấp", section = "", type = "free_text" },
+  { label = "Đơn vị lập", section = "", type = "organization_name" },
+  { label = "Đề nghị cấp căn cước điện tử", section = "", type = "checkbox" },
+  { label = "Đề nghị tích hợp thông tin trên thẻ", section = "", type = "checkbox" },
+  { label = "Thông tin tích hợp (thẻ)", section = "", type = "free_text" },
+  { label = "Đề nghị tích hợp trên căn cước điện tử", section = "", type = "checkbox" },
+  { label = "Thông tin tích hợp (điện tử)", section = "", type = "free_text" },
+  { label = "Đề nghị thu thập ADN", section = "", type = "checkbox" },
+  { label = "Đề nghị thu thập giọng nói", section = "", type = "checkbox" },
+  { label = "Vân tay, mống mắt (14 ô)", section = "Sinh trắc học", type = "biometric" },
+  { label = "Ngày ... tháng ... năm ...", section = "Ký", type = "date" },
+  { label = "Cán bộ kiểm tra", section = "Ký", type = "signature" },
+  { label = "Người khai", section = "Ký", type = "signature" },
+]

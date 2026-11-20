@@ -1,0 +1,30 @@
+form_id = "tk1_ts_bhxh"
+title = "TỜ KHAI ĐĂNG KÝ, ĐIỀU CHỈNH THÔNG TIN THAM GIA BHXH, BHYT (TK1-TS)"
+legal_basis = "Quyết định 366/QĐ-BHXH ngày 29/4/2026 (as stated on page)"
+source_url = "https://luatvietnam.vn/bieu-mau/mau-to-khai-tk1-ts-571-20049-article.html"
+extraction = "verbatim page text"
+
+fields = [
+  { label = "Mã số BHXH", section = "", type = "insurance_number" },
+  { label = "[01] Họ và tên", section = "Thông tin chung", type = "person_name" },
+  { label = "[02] Giới tính Nam/Nữ", section = "Thông tin chung", type = "checkbox", hints = ["cccd_cross"], note = "gender as checkbox" },
+  { label = "[03] Ngày, tháng, năm sinh", section = "Thông tin chung", type = "date", hints = ["cccd_cross"] },
+  { label = "[04] Số CCCD/ĐDCN/hộ chiếu", section = "Thông tin chung", type = "id_number", hints = ["cccd_cross"] },
+  { label = "[05] Dân tộc", section = "Thông tin chung", type = "ethnicity" },
+  { label = "[06] Quốc tịch", section = "Thông tin chung", type = "nationality" },
+  { label = "[07] Số điện thoại", section = "Thông tin chung", type = "phone" },
+  { label = "[08] Địa chỉ email", section = "Thông tin chung", type = "email" },
+  { label = "[09] Nơi đăng ký khám, chữa bệnh ban đầu", section = "Thông tin chung", type = "organization_name", note = "closed registry of facilities in principle" },
+  { label = "[10] Bản điện tử / Bản giấy", section = "Thông tin chung", type = "checkbox" },
+  { label = "[11.1] số nhà, đường/phố, thôn/xóm", section = "Thông tin chung", type = "address" },
+  { label = "[11.2] Xã, phường, đặc khu", section = "Thông tin chung", type = "admin_unit", note = "post-2025 two-level structure" },
+  { label = "[11.3] Tỉnh, thành phố", section = "Thông tin chung", type = "admin_unit" },
+  { label = "[12] Mức tiền đóng", section = "Bổ sung", type = "money_number" },
+  { label = "[13] Phương thức đóng", section = "Bổ sung", type = "free_text" },
+  { label = "[14] Nghề, công việc, thời gian và nơi làm việc", section = "Bổ sung", type = "free_text" },
+  { label = "[15] Đối tượng tham gia", section = "Bổ sung", type = "free_text" },
+  { label = "[16] Nội dung đề nghị", section = "Điều chỉnh", type = "free_text" },
+  { label = "[17] Giấy tờ kèm theo", section = "Điều chỉnh", type = "free_text" },
+  { label = "..., ngày ... tháng ... năm ...", section = "Ký", type = "date" },
+  { label = "Người kê khai", section = "Ký", type = "signature" },
+]

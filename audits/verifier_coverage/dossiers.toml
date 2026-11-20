@@ -1,0 +1,373 @@
+# Direction A: dossier-level cross-document redundancy.
+#
+# A form is rarely processed alone. It arrives inside a hồ sơ (dossier) together with
+# other documents, or it is checked against a card or a database at the counter. When
+# one of those documents states the same fact (name, DOB, ID, address) in printed or
+# signed digital form, it can verify the (often handwritten) value on the form.
+#
+# Each anchor is reached through a *channel*. Which channels exist depends on the
+# deployment scenario (see SCENARIOS in audit.py):
+#   submitted               legally required part of the dossier -> stays in the archive
+#   submitted_conventional  not legally required, but customary (e.g. job dossiers)
+#   public_registry         public lookup keyed by a field on the form (MST registry)
+#   presented_print         shown at the counter, never copied; available only if the
+#                           intake system photographs/scans it (printed OCR)
+#   presented_chip          same card, read over NFC (ICAO 9303, signed by the issuer)
+#   gov_db                  government database (CSDL quốc gia về dân cư, tax e-invoice
+#                           portal); only for agencies with integration rights
+#
+# Match kinds:
+#   exact      the anchor states this field in full and it must be identical -> strong
+#   may_differ the anchor states it in full, but it may legitimately differ (person moved,
+#              card older than the form). Agreement is strong evidence, but the check only
+#              fires when the value did not change -> counted as partial.
+#
+# `record` groups anchors that are views of the same underlying record (the card's print
+# and its chip). Two anchors with the same record are NOT independent and are counted as
+# one verifier by the combined rule.
+
+# ---------------------------------------------------------------------------------------
+# Anchors
+# ---------------------------------------------------------------------------------------
+[anchors.cccd_print]
+title = "Thẻ căn cước / CCCD, printed faces (original or photocopy)"
+record = "cccd"
+fields = ["ho_ten", "so_dinh_danh", "ngay_sinh", "gioi_tinh", "quoc_tich", "que_quan",
+          "noi_dk_khai_sinh", "noi_cu_tru", "ngay_cap", "noi_cap", "ngay_het_han"]
+note = """Card issued since 1/7/2024 (TT 16/2024/TT-BCA): front = ảnh, số định danh, họ tên,
+ngày sinh, giới tính, quốc tịch; back = nơi cư trú, nơi đăng ký khai sinh, ngày cấp,
+ngày hết hạn, QR, chip. Older CCCD (2016/2021) prints quê quán and nơi thường trú instead.
+Gender and nationality on the new front are from prior knowledge, not re-verified."""
+source = "https://hatinh.gov.vn/vi/bai-viet/chinh-thuc-co-mau-the-can-cuoc-moi-ap-dung-tu-ngay-0172024"
+
+[anchors.cccd_chip]
+title = "CCCD / thẻ căn cước chip (NFC, ICAO 9303, passive authentication)"
+record = "cccd"
+fields = ["ho_ten", "so_dinh_danh", "ngay_sinh", "gioi_tinh", "quoc_tich", "dan_toc",
+          "ton_giao", "que_quan", "noi_thuong_tru", "ho_ten_cha", "ho_ten_me",
+          "ho_ten_vo_chong", "ngay_cap", "ngay_het_han"]
+note = """Field list from a provincial guide listing what a chip reader displays (DG13).
+Whether the old 9-digit CMND number is in DG13 is unconfirmed, so it is not mapped.
+QĐ 1091/QĐ-BTTTT: readers must not store data read from the chip."""
+source = "https://sontrung.huongson.hatinh.gov.vn/portal/DinhKemTinBai/2023-03/3. HD sử dụng 07 phương thức_100536.pdf"
+
+[anchors.giay_khai_sinh]
+title = "Giấy khai sinh (copy)"
+record = "khai_sinh"
+fields = ["ho_ten", "gioi_tinh", "ngay_sinh", "noi_sinh", "que_quan", "dan_toc", "quoc_tich",
+          "so_dinh_danh", "ho_ten_me", "nam_sinh_me", "ho_ten_cha", "nam_sinh_cha"]
+note = """TT 04/2020/TT-BTP: name in capitals, DOB in digits and words. Parent name/year rows
+are from prior knowledge of the template; verify against the TT 04/2020 annex."""
+source = "https://luatvietnam.vn/bieu-mau/mau-giay-khai-sinh-571-32603-article.html"
+
+[anchors.gcn_cho_o]
+title = "Giấy tờ chứng minh chỗ ở hợp pháp (GCN quyền sử dụng đất / hợp đồng thuê)"
+record = "cho_o"
+fields = ["ho_ten_chu_so_huu", "so_dinh_danh_chu_so_huu", "dia_chi_cho_o"]
+note = "Luật Cư trú 2020 Điều 21: dossier = tờ khai + proof of lawful residence."
+source = "https://congan.bacgiang.gov.vn/uploads/files/Q-330-c-ng-khai-TTHC-l-nh-v-c-qu-n-l-c-tr-.pdf"
+
+[anchors.mst_registry]
+title = "Tax-registration lookup by MST (tracuunnt.gdt.gov.vn)"
+record = "mst"
+fields = ["ten_nnt", "dia_chi_tru_so"]
+note = """Public, CAPTCHA-protected. Useful for organisations. Since 1/7/2025 an individual's
+MST IS the 12-digit số định danh (TT 86/2024/TT-BTC), so individual MSTs carry no mod-11
+check digit and their registry entries are not public."""
+source = "https://hatinh.gov.vn/vi/bai-viet/tu-172025-su-dung-so-dinh-danh-ca-nhan-thay-cho-ma-so-thue"
+
+[anchors.thong_bao_thue]
+title = "Thông báo / quyết định của cơ quan thuế (what is being paid)"
+record = "thong_bao"
+fields = ["ten_nnt", "mst", "dia_chi", "so_thong_bao", "so_tien", "ma_chuong", "ma_tieu_muc"]
+note = "Brought to the bank/KBNN counter; the payer may pay part of the amount."
+source = ""
+
+[anchors.csdl_dan_cu]
+title = "CSDL quốc gia về dân cư (lookup by số định danh)"
+record = "csdl"
+fields = ["ho_ten", "so_dinh_danh", "ngay_sinh", "gioi_tinh", "quoc_tich", "dan_toc",
+          "ton_giao", "que_quan", "noi_dk_khai_sinh", "noi_thuong_tru", "noi_o_hien_tai",
+          "ho_ten_cha", "ho_ten_me", "ho_ten_vo_chong", "chu_ho", "quan_he_chu_ho",
+          "tinh_trang_hon_nhan"]
+note = """Agencies exploit it instead of asking for paper (khai sinh, kết hôn from 1/1/2026 per
+NQ 66.7/2025/NQ-CP, cư trú, BHXH). With this access, identity fields need only the ID read
+correctly; the rest can be looked up."""
+source = "https://thuvienphapluat.vn/phap-luat/khi-dang-ky-ket-hon-giua-hai-nguoi-viet-nam-tu-112026-co-can-xin-giay-xac-nhan-tinh-trang-hon-nhan--242239.html"
+
+[anchors.einvoice_portal]
+title = "Original e-invoice XML (hoadondientu.gdt.gov.vn or provider lookup code)"
+record = "einvoice"
+fields = ["all"]
+note = """NĐ 123/2020: invoices are electronic; a paper invoice is a print of a signed XML.
+With the lookup code or a buyer account the original can be fetched, which makes OCR of
+the content unnecessary."""
+source = ""
+
+# ---------------------------------------------------------------------------------------
+# Dossiers: one per form. `anchors` lists which anchors reach this dossier and through
+# which channel. `map` lists which form fields each anchor can check.
+# ---------------------------------------------------------------------------------------
+
+[[dossier]]
+form_id = "to_khai_xac_nhan_hon_nhan"
+procedure = "Cấp Giấy xác nhận tình trạng hôn nhân"
+legal_basis = "NĐ 123/2015/NĐ-CP Điều 22; TT 04/2020/TT-BTP"
+source_url = "https://vpcp.dichvucong.gov.vn/p/home/dvc-tthc-thu-tuc-hanh-chinh-chi-tiet.html?ma_thu_tuc=1774"
+note = "Only the tờ khai is submitted; the ID card is presented and handed back."
+anchors = [
+  { anchor = "cccd_print", channel = "presented_print" },
+  { anchor = "cccd_chip", channel = "presented_chip" },
+  { anchor = "csdl_dan_cu", channel = "gov_db" },
+]
+map = [
+  { section = "Người yêu cầu", label = "Họ, chữ đệm, tên người yêu cầu", anchor = "cccd_print", field = "ho_ten", match = "exact" },
+  { section = "Người yêu cầu", label = "Họ, chữ đệm, tên người yêu cầu", anchor = "cccd_chip", field = "ho_ten", match = "exact" },
+  { section = "Người yêu cầu", label = "Họ, chữ đệm, tên người yêu cầu", anchor = "csdl_dan_cu", field = "ho_ten", match = "exact" },
+  { section = "Người yêu cầu", label = "Nơi cư trú", anchor = "cccd_print", field = "noi_cu_tru", match = "may_differ" },
+  { section = "Người yêu cầu", label = "Nơi cư trú", anchor = "cccd_chip", field = "noi_thuong_tru", match = "may_differ" },
+  { section = "Người yêu cầu", label = "Nơi cư trú", anchor = "csdl_dan_cu", field = "noi_thuong_tru", match = "exact" },
+  { section = "Người yêu cầu", label = "Giấy tờ tùy thân", anchor = "cccd_print", field = "so_dinh_danh", match = "exact" },
+  { section = "Người yêu cầu", label = "Giấy tờ tùy thân", anchor = "cccd_chip", field = "so_dinh_danh", match = "exact" },
+  { section = "Người yêu cầu", label = "Giấy tờ tùy thân", anchor = "csdl_dan_cu", field = "so_dinh_danh", match = "exact" },
+  { section = "Người được cấp", label = "Họ, chữ đệm, tên", anchor = "cccd_print", field = "ho_ten", match = "exact" },
+  { section = "Người được cấp", label = "Họ, chữ đệm, tên", anchor = "cccd_chip", field = "ho_ten", match = "exact" },
+  { section = "Người được cấp", label = "Họ, chữ đệm, tên", anchor = "csdl_dan_cu", field = "ho_ten", match = "exact" },
+  { section = "Người được cấp", label = "Ngày, tháng, năm sinh", anchor = "cccd_print", field = "ngay_sinh", match = "exact" },
+  { section = "Người được cấp", label = "Ngày, tháng, năm sinh", anchor = "cccd_chip", field = "ngay_sinh", match = "exact" },
+  { section = "Người được cấp", label = "Ngày, tháng, năm sinh", anchor = "csdl_dan_cu", field = "ngay_sinh", match = "exact" },
+  { section = "Người được cấp", label = "Giới tính", anchor = "cccd_print", field = "gioi_tinh", match = "exact" },
+  { section = "Người được cấp", label = "Dân tộc", anchor = "cccd_chip", field = "dan_toc", match = "exact" },
+  { section = "Người được cấp", label = "Dân tộc", anchor = "csdl_dan_cu", field = "dan_toc", match = "exact" },
+  { section = "Người được cấp", label = "Quốc tịch", anchor = "cccd_print", field = "quoc_tich", match = "exact" },
+  { section = "Người được cấp", label = "Nơi cư trú", anchor = "cccd_print", field = "noi_cu_tru", match = "may_differ" },
+  { section = "Người được cấp", label = "Nơi cư trú", anchor = "cccd_chip", field = "noi_thuong_tru", match = "may_differ" },
+  { section = "Người được cấp", label = "Nơi cư trú", anchor = "csdl_dan_cu", field = "noi_thuong_tru", match = "exact" },
+  { section = "Người được cấp", label = "Giấy tờ tùy thân", anchor = "cccd_print", field = "so_dinh_danh", match = "exact" },
+  { section = "Người được cấp", label = "Giấy tờ tùy thân", anchor = "cccd_chip", field = "so_dinh_danh", match = "exact" },
+  { section = "Người được cấp", label = "Giấy tờ tùy thân", anchor = "csdl_dan_cu", field = "so_dinh_danh", match = "exact" },
+  { section = "Người được cấp", label = "Tình trạng hôn nhân", anchor = "csdl_dan_cu", field = "tinh_trang_hon_nhan", match = "exact" },
+]
+
+[[dossier]]
+form_id = "ct01_cu_tru"
+procedure = "Đăng ký thường trú"
+legal_basis = "Luật Cư trú 2020 Điều 21; TT 66/2023/TT-BCA (CT01 replaced by TT 116/2026 from 1/7/2026)"
+source_url = "https://congan.bacgiang.gov.vn/uploads/files/Q-330-c-ng-khai-TTHC-l-nh-v-c-qu-n-l-c-tr-.pdf"
+note = """Submitted: CT01 + proof of lawful residence. Identity is checked against CSDL dân cư;
+showing the card is common practice, not a dossier requirement."""
+anchors = [
+  { anchor = "gcn_cho_o", channel = "submitted" },
+  { anchor = "cccd_print", channel = "presented_print" },
+  { anchor = "cccd_chip", channel = "presented_chip" },
+  { anchor = "csdl_dan_cu", channel = "gov_db" },
+]
+map = [
+  { section = "Người kê khai", label = "Họ, chữ đệm và tên", anchor = "cccd_print", field = "ho_ten", match = "exact" },
+  { section = "Người kê khai", label = "Họ, chữ đệm và tên", anchor = "cccd_chip", field = "ho_ten", match = "exact" },
+  { section = "Người kê khai", label = "Họ, chữ đệm và tên", anchor = "csdl_dan_cu", field = "ho_ten", match = "exact" },
+  { section = "Người kê khai", label = "Ngày, tháng, năm sinh", anchor = "cccd_print", field = "ngay_sinh", match = "exact" },
+  { section = "Người kê khai", label = "Ngày, tháng, năm sinh", anchor = "cccd_chip", field = "ngay_sinh", match = "exact" },
+  { section = "Người kê khai", label = "Ngày, tháng, năm sinh", anchor = "csdl_dan_cu", field = "ngay_sinh", match = "exact" },
+  { section = "Người kê khai", label = "Giới tính", anchor = "cccd_print", field = "gioi_tinh", match = "exact" },
+  { section = "Người kê khai", label = "Số định danh cá nhân", anchor = "cccd_print", field = "so_dinh_danh", match = "exact" },
+  { section = "Người kê khai", label = "Số định danh cá nhân", anchor = "cccd_chip", field = "so_dinh_danh", match = "exact" },
+  { section = "Người kê khai", label = "Số định danh cá nhân", anchor = "csdl_dan_cu", field = "so_dinh_danh", match = "exact" },
+  { section = "Chủ hộ", label = "Họ, chữ đệm và tên chủ hộ", anchor = "csdl_dan_cu", field = "chu_ho", match = "exact" },
+  { section = "Chủ hộ", label = "Mối quan hệ với chủ hộ", anchor = "csdl_dan_cu", field = "quan_he_chu_ho", match = "may_differ" },
+  { section = "Chủ hộ", label = "Số định danh cá nhân của chủ hộ", anchor = "csdl_dan_cu", field = "so_dinh_danh", match = "exact" },
+  { section = "Thành viên hộ (bảng)", label = "Họ, chữ đệm và tên", anchor = "csdl_dan_cu", field = "ho_ten", match = "exact" },
+  { section = "Thành viên hộ (bảng)", label = "Ngày, tháng, năm sinh", anchor = "csdl_dan_cu", field = "ngay_sinh", match = "exact" },
+  { section = "Thành viên hộ (bảng)", label = "Số định danh cá nhân", anchor = "csdl_dan_cu", field = "so_dinh_danh", match = "exact" },
+  { section = "Chủ sở hữu chỗ ở", label = "Họ và tên (VNeID)", anchor = "gcn_cho_o", field = "ho_ten_chu_so_huu", match = "exact" },
+  { section = "Chủ sở hữu chỗ ở", label = "Họ và tên (VNeID)", anchor = "csdl_dan_cu", field = "ho_ten", match = "exact" },
+  { section = "Chủ sở hữu chỗ ở", label = "Số định danh cá nhân (VNeID)", anchor = "gcn_cho_o", field = "so_dinh_danh_chu_so_huu", match = "may_differ" },
+  { section = "Chủ sở hữu chỗ ở", label = "Số định danh cá nhân (VNeID)", anchor = "csdl_dan_cu", field = "so_dinh_danh", match = "exact" },
+  { section = "Cha, mẹ, giám hộ", label = "Họ và tên (VNeID)", anchor = "csdl_dan_cu", field = "ho_ten_cha", match = "exact" },
+  { section = "Cha, mẹ, giám hộ", label = "Số định danh cá nhân (VNeID)", anchor = "csdl_dan_cu", field = "so_dinh_danh", match = "exact" },
+]
+
+[[dossier]]
+form_id = "cc01_can_cuoc"
+procedure = "Cấp đổi / cấp lại thẻ căn cước"
+legal_basis = "Luật Căn cước 2023; TT 118/2026/TT-BCA (CC01)"
+source_url = "https://lsvn.vn/chi-tiet-the-can-cuoc-mau-moi-duoc-cap-tu-ngay-01-7-1719876409-a145008.html"
+note = """For cấp đổi the old card is presented. In practice the officer fills CC01 from CSDL dân
+cư, so the handwritten case is mostly first issuance and corrections."""
+anchors = [
+  { anchor = "cccd_print", channel = "presented_print" },
+  { anchor = "cccd_chip", channel = "presented_chip" },
+  { anchor = "csdl_dan_cu", channel = "gov_db" },
+]
+map = [
+  { section = "Chủ thể", label = "Họ, chữ đệm và tên khai sinh", anchor = "cccd_print", field = "ho_ten", match = "exact" },
+  { section = "Chủ thể", label = "Họ, chữ đệm và tên khai sinh", anchor = "cccd_chip", field = "ho_ten", match = "exact" },
+  { section = "Chủ thể", label = "Họ, chữ đệm và tên khai sinh", anchor = "csdl_dan_cu", field = "ho_ten", match = "exact" },
+  { section = "Chủ thể", label = "Ngày, tháng, năm sinh", anchor = "cccd_print", field = "ngay_sinh", match = "exact" },
+  { section = "Chủ thể", label = "Ngày, tháng, năm sinh", anchor = "cccd_chip", field = "ngay_sinh", match = "exact" },
+  { section = "Chủ thể", label = "Ngày, tháng, năm sinh", anchor = "csdl_dan_cu", field = "ngay_sinh", match = "exact" },
+  { section = "Chủ thể", label = "Giới tính", anchor = "cccd_print", field = "gioi_tinh", match = "exact" },
+  { section = "Chủ thể", label = "Số định danh cá nhân", anchor = "cccd_print", field = "so_dinh_danh", match = "exact" },
+  { section = "Chủ thể", label = "Số định danh cá nhân", anchor = "cccd_chip", field = "so_dinh_danh", match = "exact" },
+  { section = "Chủ thể", label = "Số định danh cá nhân", anchor = "csdl_dan_cu", field = "so_dinh_danh", match = "exact" },
+  { section = "Chủ thể", label = "Dân tộc", anchor = "cccd_chip", field = "dan_toc", match = "exact" },
+  { section = "Chủ thể", label = "Tôn giáo", anchor = "cccd_chip", field = "ton_giao", match = "exact" },
+  { section = "Chủ thể", label = "Quốc tịch", anchor = "cccd_print", field = "quoc_tich", match = "exact" },
+  { section = "Chủ thể", label = "Quê quán", anchor = "cccd_print", field = "que_quan", match = "exact" },
+  { section = "Chủ thể", label = "Quê quán", anchor = "cccd_chip", field = "que_quan", match = "exact" },
+  { section = "Chủ thể", label = "Nơi đăng ký khai sinh", anchor = "cccd_print", field = "noi_dk_khai_sinh", match = "may_differ" },
+  { section = "Chủ thể", label = "Nơi đăng ký khai sinh", anchor = "csdl_dan_cu", field = "noi_dk_khai_sinh", match = "exact" },
+  { section = "Chủ thể", label = "Nơi thường trú", anchor = "cccd_print", field = "noi_cu_tru", match = "may_differ" },
+  { section = "Chủ thể", label = "Nơi thường trú", anchor = "cccd_chip", field = "noi_thuong_tru", match = "may_differ" },
+  { section = "Chủ thể", label = "Nơi thường trú", anchor = "csdl_dan_cu", field = "noi_thuong_tru", match = "exact" },
+  { section = "Chủ thể", label = "Nơi ở hiện tại", anchor = "csdl_dan_cu", field = "noi_o_hien_tai", match = "may_differ" },
+  { section = "Thân nhân (bảng)", label = "Họ, chữ đệm và tên khai sinh", anchor = "cccd_chip", field = "ho_ten_cha", match = "may_differ" },
+  { section = "Thân nhân (bảng)", label = "Họ, chữ đệm và tên khai sinh", anchor = "csdl_dan_cu", field = "ho_ten_cha", match = "exact" },
+  { section = "Thân nhân (bảng)", label = "Số định danh cá nhân", anchor = "csdl_dan_cu", field = "so_dinh_danh", match = "exact" },
+]
+
+[[dossier]]
+form_id = "giay_nop_tien_nsnn"
+procedure = "Nộp tiền vào NSNN tại ngân hàng / KBNN"
+legal_basis = "TT 84/2016/TT-BTC (C1-02/NS)"
+source_url = ""
+note = """The archived copy normally sits alone (bank or KBNN file). At the counter the payer
+usually brings the tax notice. Since 1/7/2025 an individual payer's MST is the CCCD number."""
+anchors = [
+  { anchor = "mst_registry", channel = "public_registry" },
+  { anchor = "thong_bao_thue", channel = "presented_print" },
+  { anchor = "csdl_dan_cu", channel = "gov_db" },
+]
+map = [
+  { section = "Người nộp thuế", label = "Người nộp thuế", anchor = "mst_registry", field = "ten_nnt", match = "exact" },
+  { section = "Người nộp thuế", label = "Người nộp thuế", anchor = "thong_bao_thue", field = "ten_nnt", match = "exact" },
+  { section = "Người nộp thuế", label = "Mã số thuế", anchor = "thong_bao_thue", field = "mst", match = "exact" },
+  { section = "Người nộp thuế", label = "Địa chỉ", anchor = "mst_registry", field = "dia_chi_tru_so", match = "may_differ" },
+  { section = "Người nộp thuế", label = "Địa chỉ", anchor = "thong_bao_thue", field = "dia_chi", match = "exact" },
+  { section = "Người nộp thuế", label = "Quận/Huyện", anchor = "mst_registry", field = "dia_chi_tru_so", match = "may_differ" },
+  { section = "Người nộp thuế", label = "Tỉnh, TP", anchor = "mst_registry", field = "dia_chi_tru_so", match = "may_differ" },
+  { section = "Bảng kê", label = "Số tờ khai/quyết định/thông báo", anchor = "thong_bao_thue", field = "so_thong_bao", match = "exact" },
+  { section = "Bảng kê", label = "Số tiền VND", anchor = "thong_bao_thue", field = "so_tien", match = "may_differ" },
+  { section = "Bảng kê", label = "Tổng cộng", anchor = "thong_bao_thue", field = "so_tien", match = "may_differ" },
+  { section = "Bảng kê", label = "Mã chương", anchor = "thong_bao_thue", field = "ma_chuong", match = "exact" },
+  { section = "Bảng kê", label = "Mã tiểu mục", anchor = "thong_bao_thue", field = "ma_tieu_muc", match = "exact" },
+]
+
+[[dossier]]
+form_id = "giay_uy_quyen"
+procedure = "Công chứng giấy / hợp đồng ủy quyền"
+legal_basis = "Luật Công chứng 2024 (46/2024/QH15), effective 1/7/2025"
+source_url = "https://caselaw.vn/van-ban-phap-luat/411477-luat-cong-chung-so-46-2024-qh15-ngay-26-11-2024-cua-quoc-hoi"
+note = """The notarial file keeps a copy of each party's ID document (a plain photocopy suffices
+under the 2024 law) or a printout from CSDL dân cư (Điều 69 refers to such printouts). Either
+way a printed anchor is archived with the form. For plain chứng thực chữ ký (NĐ 23/2015)
+the card is only presented; that case is the live_scan scenario."""
+anchors = [
+  { anchor = "cccd_print", channel = "submitted" },
+  { anchor = "csdl_dan_cu", channel = "gov_db" },
+]
+map = [
+  { section = "Bên ủy quyền 1", label = "Ông", anchor = "cccd_print", field = "ho_ten", match = "exact" },
+  { section = "Bên ủy quyền 1", label = "Sinh năm", anchor = "cccd_print", field = "ngay_sinh", match = "exact" },
+  { section = "Bên ủy quyền 1", label = "CMND/CCCD/Hộ chiếu số", anchor = "cccd_print", field = "so_dinh_danh", match = "exact" },
+  { section = "Bên ủy quyền 1", label = "do ... cấp", anchor = "cccd_print", field = "noi_cap", match = "exact" },
+  { section = "Bên ủy quyền 1", label = "cấp ngày", anchor = "cccd_print", field = "ngay_cap", match = "exact" },
+  { section = "Bên ủy quyền 1", label = "Hộ khẩu thường trú", anchor = "cccd_print", field = "noi_cu_tru", match = "may_differ" },
+  { section = "Bên ủy quyền 2", label = "Cùng vợ là bà", anchor = "cccd_print", field = "ho_ten", match = "exact" },
+  { section = "Bên ủy quyền 2", label = "Sinh năm", anchor = "cccd_print", field = "ngay_sinh", match = "exact" },
+  { section = "Bên ủy quyền 2", label = "CMND/CCCD/Hộ chiếu số", anchor = "cccd_print", field = "so_dinh_danh", match = "exact" },
+  { section = "Bên ủy quyền 2", label = "do ... cấp", anchor = "cccd_print", field = "noi_cap", match = "exact" },
+  { section = "Bên ủy quyền 2", label = "cấp ngày", anchor = "cccd_print", field = "ngay_cap", match = "exact" },
+  { section = "Bên ủy quyền 2", label = "Hộ khẩu thường trú", anchor = "cccd_print", field = "noi_cu_tru", match = "may_differ" },
+  { section = "Bên được ủy quyền", label = "Ông/bà", anchor = "cccd_print", field = "ho_ten", match = "exact" },
+  { section = "Bên được ủy quyền", label = "Sinh năm", anchor = "cccd_print", field = "ngay_sinh", match = "exact" },
+  { section = "Bên được ủy quyền", label = "CMND/CCCD/Hộ chiếu số", anchor = "cccd_print", field = "so_dinh_danh", match = "exact" },
+  { section = "Bên được ủy quyền", label = "do ... cấp", anchor = "cccd_print", field = "noi_cap", match = "exact" },
+  { section = "Bên được ủy quyền", label = "cấp ngày", anchor = "cccd_print", field = "ngay_cap", match = "exact" },
+  { section = "Bên được ủy quyền", label = "Hộ khẩu thường trú", anchor = "cccd_print", field = "noi_cu_tru", match = "may_differ" },
+  { section = "Nội dung", label = "ông/bà (Điều 1)", anchor = "cccd_print", field = "ho_ten", match = "exact" },
+  { section = "Nội dung", label = "Điều 2. Phạm vi ủy quyền - Ông/bà", anchor = "cccd_print", field = "ho_ten", match = "exact" },
+  { section = "Nội dung", label = "Trong phạm vi uỷ quyền, ông/bà", anchor = "cccd_print", field = "ho_ten", match = "exact" },
+  { section = "Nội dung", label = "Điều 4. Thời hạn ủy quyền - ông/bà", anchor = "cccd_print", field = "ho_ten", match = "exact" },
+  { section = "Cam kết", label = "ông (cam kết)", anchor = "cccd_print", field = "ho_ten", match = "exact" },
+]
+
+[[dossier]]
+form_id = "tk1_ts_bhxh"
+procedure = "Đăng ký tham gia BHXH tự nguyện / BHYT; điều chỉnh thông tin"
+legal_basis = "QĐ 366/QĐ-BHXH 2026"
+source_url = ""
+note = """Only TK1-TS is submitted; BHXH matches identity against CSDL dân cư. Card presentation
+at the counter is practice, not a dossier requirement."""
+anchors = [
+  { anchor = "cccd_print", channel = "presented_print" },
+  { anchor = "cccd_chip", channel = "presented_chip" },
+  { anchor = "csdl_dan_cu", channel = "gov_db" },
+]
+map = [
+  { section = "Thông tin chung", label = "[01] Họ và tên", anchor = "cccd_print", field = "ho_ten", match = "exact" },
+  { section = "Thông tin chung", label = "[01] Họ và tên", anchor = "cccd_chip", field = "ho_ten", match = "exact" },
+  { section = "Thông tin chung", label = "[01] Họ và tên", anchor = "csdl_dan_cu", field = "ho_ten", match = "exact" },
+  { section = "Thông tin chung", label = "[03] Ngày, tháng, năm sinh", anchor = "cccd_print", field = "ngay_sinh", match = "exact" },
+  { section = "Thông tin chung", label = "[03] Ngày, tháng, năm sinh", anchor = "cccd_chip", field = "ngay_sinh", match = "exact" },
+  { section = "Thông tin chung", label = "[03] Ngày, tháng, năm sinh", anchor = "csdl_dan_cu", field = "ngay_sinh", match = "exact" },
+  { section = "Thông tin chung", label = "[04] Số CCCD/ĐDCN/hộ chiếu", anchor = "cccd_print", field = "so_dinh_danh", match = "exact" },
+  { section = "Thông tin chung", label = "[04] Số CCCD/ĐDCN/hộ chiếu", anchor = "cccd_chip", field = "so_dinh_danh", match = "exact" },
+  { section = "Thông tin chung", label = "[04] Số CCCD/ĐDCN/hộ chiếu", anchor = "csdl_dan_cu", field = "so_dinh_danh", match = "exact" },
+  { section = "Thông tin chung", label = "[05] Dân tộc", anchor = "cccd_chip", field = "dan_toc", match = "exact" },
+  { section = "Thông tin chung", label = "[06] Quốc tịch", anchor = "cccd_print", field = "quoc_tich", match = "exact" },
+  { section = "Thông tin chung", label = "[11.1] số nhà, đường/phố, thôn/xóm", anchor = "cccd_print", field = "noi_cu_tru", match = "may_differ" },
+  { section = "Thông tin chung", label = "[11.1] số nhà, đường/phố, thôn/xóm", anchor = "csdl_dan_cu", field = "noi_o_hien_tai", match = "may_differ" },
+  { section = "Thông tin chung", label = "[11.2] Xã, phường, đặc khu", anchor = "cccd_print", field = "noi_cu_tru", match = "may_differ" },
+  { section = "Thông tin chung", label = "[11.3] Tỉnh, thành phố", anchor = "cccd_print", field = "noi_cu_tru", match = "may_differ" },
+]
+
+[[dossier]]
+form_id = "so_yeu_ly_lich"
+procedure = "Hồ sơ xin việc / tuyển dụng"
+legal_basis = "No legal list (BLLĐ 2019 and NĐ 145/2020 are silent); contents are convention"
+source_url = "https://vn.joboko.com/blog/ho-so-xin-viec-nwi5328"
+note = """Customary dossier: đơn, sơ yếu lý lịch, bản sao CCCD, bản sao giấy khai sinh (common for
+public-sector hiring), bằng cấp, giấy khám sức khỏe, ảnh."""
+anchors = [
+  { anchor = "cccd_print", channel = "submitted_conventional" },
+  { anchor = "giay_khai_sinh", channel = "submitted_conventional" },
+]
+map = [
+  { section = "Bản thân", label = "Họ và tên (chữ in hoa)", anchor = "cccd_print", field = "ho_ten", match = "exact" },
+  { section = "Bản thân", label = "Họ và tên (chữ in hoa)", anchor = "giay_khai_sinh", field = "ho_ten", match = "exact" },
+  { section = "Bản thân", label = "Nam/Nữ", anchor = "cccd_print", field = "gioi_tinh", match = "exact" },
+  { section = "Bản thân", label = "Sinh ngày ... tháng ... năm", anchor = "cccd_print", field = "ngay_sinh", match = "exact" },
+  { section = "Bản thân", label = "Sinh ngày ... tháng ... năm", anchor = "giay_khai_sinh", field = "ngay_sinh", match = "exact" },
+  { section = "Bản thân", label = "Nơi sinh", anchor = "giay_khai_sinh", field = "noi_sinh", match = "exact" },
+  { section = "Bản thân", label = "Nguyên quán", anchor = "giay_khai_sinh", field = "que_quan", match = "exact" },
+  { section = "Bản thân", label = "Nguyên quán", anchor = "cccd_print", field = "que_quan", match = "exact" },
+  { section = "Bản thân", label = "Nơi đăng ký hộ khẩu thường trú", anchor = "cccd_print", field = "noi_cu_tru", match = "may_differ" },
+  { section = "Bản thân", label = "Chỗ ở hiện nay", anchor = "cccd_print", field = "noi_cu_tru", match = "may_differ" },
+  { section = "Bản thân", label = "Dân tộc", anchor = "giay_khai_sinh", field = "dan_toc", match = "exact" },
+  { section = "Bản thân", label = "Số CCCD/CMND", anchor = "cccd_print", field = "so_dinh_danh", match = "exact" },
+  { section = "Bản thân", label = "cấp ngày", anchor = "cccd_print", field = "ngay_cap", match = "exact" },
+  { section = "Bản thân", label = "nơi cấp", anchor = "cccd_print", field = "noi_cap", match = "exact" },
+  { section = "Cha", label = "Họ và tên cha", anchor = "giay_khai_sinh", field = "ho_ten_cha", match = "exact" },
+  { section = "Cha", label = "Năm sinh", anchor = "giay_khai_sinh", field = "nam_sinh_cha", match = "exact" },
+  { section = "Mẹ", label = "Họ và tên mẹ", anchor = "giay_khai_sinh", field = "ho_ten_me", match = "exact" },
+  { section = "Mẹ", label = "Năm sinh", anchor = "giay_khai_sinh", field = "nam_sinh_me", match = "exact" },
+]
+
+[[dossier]]
+form_id = "hoa_don_gtgt"
+procedure = "Lưu trữ / nhập liệu hóa đơn GTGT đầu vào"
+legal_basis = "NĐ 123/2020/NĐ-CP"
+source_url = ""
+note = "Paper invoices today are prints of signed e-invoices (or pre-2022 legacy paper)."
+anchors = [
+  { anchor = "mst_registry", channel = "public_registry" },
+  { anchor = "einvoice_portal", channel = "gov_db" },
+]
+map = [
+  { section = "Người bán", label = "Tên người bán", anchor = "mst_registry", field = "ten_nnt", match = "exact" },
+  { section = "Người bán", label = "Địa chỉ người bán", anchor = "mst_registry", field = "dia_chi_tru_so", match = "may_differ" },
+  { section = "Người mua", label = "Tên người mua", anchor = "mst_registry", field = "ten_nnt", match = "exact" },
+  { section = "Người mua", label = "Địa chỉ người mua", anchor = "mst_registry", field = "dia_chi_tru_so", match = "may_differ" },
+  { section = "*", label = "*", anchor = "einvoice_portal", field = "all", match = "exact" },
+]

@@ -1,0 +1,36 @@
+form_id = "ct01_cu_tru"
+title = "TỜ KHAI THAY ĐỔI THÔNG TIN CƯ TRÚ (CT01)"
+legal_basis = "Thông tư 66/2023/TT-BCA (may be superseded in 2025-2026; verify)"
+source_url = "https://accgroup.vn/mau-to-khai-thay-doi-thong-tin-cu-tru-ct01"
+extraction = "verbatim page text"
+
+fields = [
+  { label = "Kính gửi", section = "", type = "organization_name" },
+  { label = "Họ, chữ đệm và tên", section = "Người kê khai", type = "person_name" },
+  { label = "Ngày, tháng, năm sinh", section = "Người kê khai", type = "date", hints = ["cccd_cross"] },
+  { label = "Giới tính", section = "Người kê khai", type = "gender", hints = ["cccd_cross"] },
+  { label = "Số định danh cá nhân", section = "Người kê khai", type = "id_number", hints = ["cccd_cross"] },
+  { label = "Số điện thoại liên hệ", section = "Người kê khai", type = "phone" },
+  { label = "Email", section = "Người kê khai", type = "email" },
+  { label = "Họ, chữ đệm và tên chủ hộ", section = "Chủ hộ", type = "person_name" },
+  { label = "Mối quan hệ với chủ hộ", section = "Chủ hộ", type = "relation" },
+  { label = "Số định danh cá nhân của chủ hộ", section = "Chủ hộ", type = "id_number" },
+  { label = "Nội dung đề nghị", section = "", type = "free_text" },
+  { label = "Họ, chữ đệm và tên", section = "Thành viên hộ (bảng)", type = "person_name", note = "table column" },
+  { label = "Ngày, tháng, năm sinh", section = "Thành viên hộ (bảng)", type = "date", hints = ["cccd_cross"], note = "table column" },
+  { label = "Giới tính", section = "Thành viên hộ (bảng)", type = "gender", hints = ["cccd_cross"], note = "table column" },
+  { label = "Số định danh cá nhân", section = "Thành viên hộ (bảng)", type = "id_number", hints = ["cccd_cross"], note = "table column" },
+  { label = "Mối quan hệ với chủ hộ", section = "Thành viên hộ (bảng)", type = "relation", note = "table column" },
+  { label = "Ngày ký (chủ hộ)", section = "Ký", type = "date" },
+  { label = "Ý kiến của chủ hộ", section = "Ký", type = "signature" },
+  { label = "Ngày ký (chủ sở hữu chỗ ở)", section = "Ký", type = "date" },
+  { label = "Ý kiến của chủ sở hữu chỗ ở hợp pháp", section = "Ký", type = "signature" },
+  { label = "Họ và tên (VNeID)", section = "Chủ sở hữu chỗ ở", type = "person_name" },
+  { label = "Số định danh cá nhân (VNeID)", section = "Chủ sở hữu chỗ ở", type = "id_number" },
+  { label = "Ngày ký (cha, mẹ, giám hộ)", section = "Ký", type = "date" },
+  { label = "Ý kiến của cha, mẹ hoặc người giám hộ", section = "Ký", type = "signature" },
+  { label = "Họ và tên (VNeID)", section = "Cha, mẹ, giám hộ", type = "person_name" },
+  { label = "Số định danh cá nhân (VNeID)", section = "Cha, mẹ, giám hộ", type = "id_number" },
+  { label = "Ngày ký (người kê khai)", section = "Ký", type = "date" },
+  { label = "Người kê khai", section = "Ký", type = "signature" },
+]

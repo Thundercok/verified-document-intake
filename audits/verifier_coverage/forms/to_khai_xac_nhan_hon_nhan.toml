@@ -1,0 +1,24 @@
+form_id = "to_khai_xac_nhan_hon_nhan"
+title = "TỜ KHAI CẤP GIẤY XÁC NHẬN TÌNH TRẠNG HÔN NHÂN"
+legal_basis = "Thông tư 04/2020/TT-BTP"
+source_url = "https://luatvietnam.vn/bieu-mau/mau-to-khai-cap-giay-xac-nhan-tinh-trang-hon-nhan-571-26378-article.html"
+extraction = "verbatim page text"
+
+fields = [
+  { label = "Kính gửi", section = "", type = "organization_name", note = "cơ quan cấp; thường 'UBND xã/phường ...'" },
+  { label = "Họ, chữ đệm, tên người yêu cầu", section = "Người yêu cầu", type = "person_name" },
+  { label = "Nơi cư trú", section = "Người yêu cầu", type = "address" },
+  { label = "Giấy tờ tùy thân", section = "Người yêu cầu", type = "id_number", note = "no DOB/gender in this block" },
+  { label = "Quan hệ với người được cấp", section = "Người yêu cầu", type = "relation" },
+  { label = "Họ, chữ đệm, tên", section = "Người được cấp", type = "person_name" },
+  { label = "Ngày, tháng, năm sinh", section = "Người được cấp", type = "date", hints = ["cccd_cross"] },
+  { label = "Giới tính", section = "Người được cấp", type = "gender", hints = ["cccd_cross"] },
+  { label = "Dân tộc", section = "Người được cấp", type = "ethnicity" },
+  { label = "Quốc tịch", section = "Người được cấp", type = "nationality" },
+  { label = "Nơi cư trú", section = "Người được cấp", type = "address" },
+  { label = "Giấy tờ tùy thân", section = "Người được cấp", type = "id_number", hints = ["cccd_cross"], note = "cross-check only if the document is a CCCD" },
+  { label = "Tình trạng hôn nhân", section = "Người được cấp", type = "free_text" },
+  { label = "Mục đích sử dụng", section = "Người được cấp", type = "free_text" },
+  { label = "Làm tại ..., ngày ... tháng ... năm ...", section = "Ký", type = "date" },
+  { label = "Chữ ký người yêu cầu", section = "Ký", type = "signature" },
+]
