@@ -74,3 +74,20 @@ def test_compare_dates():
     assert c.verdict is Verdict.UNDETERMINED and "year only" in c.detail
     assert compare_dates("15/03/2018", "31/02/2018").verdict is Verdict.MISMATCH
     assert str(PartialDate(2018, None, None)) == "../../2018"
+
+
+def test_place_tone_moves_tone_without_changing_meaning():
+    from document_intake.verify import place_tone
+
+    assert place_tone("Thúy Hòa khỏe", "new") == "Thuý Hoà khoẻ"
+    assert place_tone("Thuý Hoà khoẻ", "old") == "Thúy Hòa khỏe"
+    assert place_tone("QUÝ Hoàng thuyền", "new") == "QUÝ Hoàng thuyền"  # qu onset, closed rhymes
+    assert place_tone("HÒA", "new") == "HOÀ"
+    for text in ("Nguyễn Thị Thúy Hòa", "khỏe mạnh", "Quỳnh Huy"):
+        assert text_key(place_tone(text, "old")) == text_key(place_tone(text, "new")) == text_key(text)
+    with pytest.raises(ValueError):
+        place_tone("hoa", "middle")
+
+
+def test_parse_date_month_tu():
+    assert parse_date("ngày 5 tháng tư năm 2000") == PartialDate(2000, 4, 5)

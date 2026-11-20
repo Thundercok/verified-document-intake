@@ -109,3 +109,12 @@ def test_mst_remainder_ten_admits_no_check_digit():
     )
     assert mst_check_digit(prefix) is None
     assert all(check_mst(prefix + d).verdict is Verdict.MISMATCH for d in "0123456789")
+
+
+def test_compare_identifiers():
+    from document_intake.verify import compare_identifiers
+
+    assert compare_identifiers(SYNTH, "079 203 000 001").verdict is Verdict.MATCH
+    assert compare_identifiers(SYNTH, "079203000007").detail == "digits differ"
+    assert compare_identifiers(SYNTH, "07920300001").detail == "12 vs 11 digits"
+    assert compare_identifiers("", SYNTH).verdict is Verdict.UNDETERMINED

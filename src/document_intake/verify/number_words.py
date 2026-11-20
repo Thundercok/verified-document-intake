@@ -158,3 +158,62 @@ def check_amount(digits: str, words: str, verifier: str = "V_MONEY_WORDS") -> Ch
     if a != b:
         return mismatch(verifier, f"digits {a} != words {b}")
     return match(verifier)
+
+
+_UNITS = ("không", "một", "hai", "ba", "bốn", "năm", "sáu", "bảy", "tám", "chín")
+
+
+def number_to_words(
+    n: int,
+    *,
+    thousand: str = "nghìn",
+    linh: str = "linh",
+    one_after_tens: str = "mốt",
+    four_after_tens: str = "tư",
+    five: str = "lăm",
+) -> str:
+    """Formal Vietnamese words for n >= 0, the inverse of `parse_number_words`.
+
+    After a scale word every lower group is written with its hundreds ("một triệu không trăm
+    linh năm nghìn"); groups that are entirely zero are skipped. Keyword arguments select the
+    accepted variants (ngàn, lẻ, một, bốn, nhăm) so that renderings can vary without changing
+    the value.
+    """
+    if n < 0:
+        raise ValueError("negative amounts are not written in words")
+    scales = ((10**9, "tỷ"), (10**6, "triệu"), (10**3, thousand))
+
+    def tens_units(v: int, after_hundreds: bool) -> list[str]:
+        t, u = divmod(v, 10)
+        if t == 0:
+            if u == 0:
+                return []
+            return [linh, _UNITS[u]] if after_hundreds else [_UNITS[u]]
+        out = ["mười"] if t == 1 else [_UNITS[t], "mươi"]
+        if u == 5:
+            out.append(five)
+        elif u == 1 and t > 1:
+            out.append(one_after_tens)
+        elif u == 4 and t > 1:
+            out.append(four_after_tens)
+        elif u:
+            out.append(_UNITS[u])
+        return out
+
+    def group(v: int, first: bool) -> list[str]:
+        h, rest = divmod(v, 100)
+        if first and h == 0:
+            return tens_units(rest, after_hundreds=False)
+        return [_UNITS[h], "trăm", *tens_units(rest, after_hundreds=True)]
+
+    def words(v: int, first: bool) -> list[str]:
+        for value, name in scales:
+            if v >= value:
+                high, low = divmod(v, value)
+                out = [*words(high, first), name]
+                if low:
+                    out += words(low, first=False)
+                return out
+        return group(v, first)
+
+    return "không" if n == 0 else " ".join(words(n, first=True))

@@ -59,6 +59,8 @@ def _value(tok: list[str]) -> int | None:
         return None
     if all(t.isdigit() for t in tok):  # "20 18": a printed "20" followed by handwritten "18"
         return int("".join(tok))
+    if tok == ["tư"]:  # "tháng tư" is how April is written; "tư" is not a standalone number word
+        return 4
     return parse_number_words(" ".join(tok))
 
 

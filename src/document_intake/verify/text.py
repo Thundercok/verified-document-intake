@@ -79,3 +79,34 @@ def compare_names(a: str, b: str, verifier: str = "V_NAME") -> Check:
     if len(ka) != len(kb):
         return mismatch(verifier, f"{len(ka)} vs {len(kb)} syllables")
     return mismatch(verifier)
+
+
+_OPEN_RHYMES = ("oa", "oe", "uy")
+
+
+def _place_syllable(word: str, style: str) -> str:
+    nfd = unicodedata.normalize("NFD", word)
+    tones = [c for c in nfd if c in TONE_MARKS]
+    if len(tones) != 1:
+        return unicodedata.normalize("NFC", word)
+    letters = list(unicodedata.normalize("NFC", "".join(c for c in nfd if c not in TONE_MARKS)))
+    low = "".join(letters).lower()
+    if low.startswith(("qu", "gi")) or not low.endswith(_OPEN_RHYMES):
+        return unicodedata.normalize("NFC", word)
+    idx = len(letters) - (2 if style == "old" else 1)
+    letters[idx] += tones[0]
+    return unicodedata.normalize("NFC", "".join(letters))
+
+
+def place_tone(text: str, style: str = "new") -> str:
+    """Move the tone in open oa/oe/uy rhymes: old style "hòa, thúy, khỏe", new "hoà, thuý, khoẻ".
+
+    Meaning-preserving (text_key is unchanged). Syllables with a qu/gi onset ("quý") and closed
+    rhymes ("hoàng", "thuyền") have a single conventional placement and are left alone.
+    """
+    if style not in ("old", "new"):
+        raise ValueError(f"style must be 'old' or 'new', got {style!r}")
+    return "".join(
+        part if part.isspace() else _place_syllable(part, style)
+        for part in re.split(r"(\s+)", unicodedata.normalize("NFC", text))
+    )

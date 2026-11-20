@@ -97,3 +97,30 @@ def test_check_amount_verdicts():
     # Grammar violation in the words is a detected error, not "no evidence".
     assert check_amount("15", "mười năm").verdict is Verdict.MISMATCH
     assert check_amount("", "mười lăm").verdict is Verdict.UNDETERMINED
+
+
+def test_number_to_words_examples():
+    from document_intake.verify import number_to_words
+
+    assert number_to_words(0) == "không"
+    assert number_to_words(21) == "hai mươi mốt"
+    assert number_to_words(105) == "một trăm linh năm"
+    assert number_to_words(1_005_000) == "một triệu không trăm linh năm nghìn"
+    assert number_to_words(1_000_005) == "một triệu không trăm linh năm"
+    assert number_to_words(2018, thousand="ngàn") == "hai ngàn không trăm mười tám"
+    assert number_to_words(95, five="nhăm") == "chín mươi nhăm"
+    with pytest.raises(ValueError):
+        number_to_words(-1)
+
+
+def test_number_to_words_round_trips_through_the_parser():
+    import random
+
+    from document_intake.verify import number_to_words
+
+    rng = random.Random(0)
+    values = [*range(20001), *(rng.randrange(10**15) for _ in range(2000))]
+    variants = [{}, {"thousand": "ngàn", "linh": "lẻ", "one_after_tens": "một", "four_after_tens": "bốn"}]
+    for kwargs in variants:
+        for n in values:
+            assert parse_number_words(number_to_words(n, **kwargs)) == n

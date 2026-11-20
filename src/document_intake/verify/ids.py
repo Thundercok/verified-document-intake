@@ -115,3 +115,13 @@ def check_cccd_consistency(
         else:
             checks.append(mismatch("V_CCCD_PROVINCE", f"CCCD says {card.province}, field says {place}"))
     return checks
+
+
+def compare_identifiers(a: str, b: str, verifier: str = "V_ID") -> Check:
+    """The same identifier stated on two documents: digits must be identical."""
+    da, db = re.sub(r"[^0-9]", "", a), re.sub(r"[^0-9]", "", b)
+    if not da or not db:
+        return undetermined(verifier, "empty identifier")
+    if da != db:
+        return mismatch(verifier, f"{len(da)} vs {len(db)} digits" if len(da) != len(db) else "digits differ")
+    return match(verifier)
