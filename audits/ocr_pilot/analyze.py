@@ -409,9 +409,10 @@ def ocr_tables(crops: dict, reads: dict[str, dict]) -> list[str]:
         "| Engine | Side | Degradation | Crops | Exact | Semantic error | CER |",
         "|---|---|---|---:|---:|---:|---:|",
     ]
+    degrades = list(dict.fromkeys(c["degrade"] for c in crops.values()))  # first-seen order
     for e, r in reads.items():
         for side in ("A", "B"):
-            for deg in ("clean", "photo"):
+            for deg in degrades:
                 ks = [k for k in r if crops[k]["side"] == side and crops[k]["degrade"] == deg]
                 if not ks:
                     continue

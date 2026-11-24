@@ -9,10 +9,20 @@ The crops are plain text lines on a blank background. They do not reproduce the 
 or security features of any official document, and every value is generated (see
 `document_intake.synth`).
 
-Half the dossiers are degraded like a phone photo (slight rotation, blur, uneven lighting,
-sensor noise, JPEG). The degradation is drawn per dossier, so both sides of a dossier share it.
+Suite `photo` (default): half the dossiers are degraded like a phone photo (slight rotation,
+blur, uneven lighting, sensor noise, JPEG), grey-scale.
+
+Suite `stress`: the perturbations of docs/RESEARCH_PLAN.md, one condition per dossier in turn,
+in colour (a red stamp is only red in colour; Tesseract binarises it to a dark grey):
+clean, skew3 / skew7 (+-3 / +-7 degrees), stamp_light / stamp_heavy (a red stamp crossing the
+line, translucent or nearly opaque), lowdpi (downsampled to 30-45%), and combined (a stamp, a
+3-7 degree skew and low DPI). The stamp is a generic ring reading "MẪU · KHÔNG CÓ GIÁ TRỊ PHÁP
+LÝ" with "MẪU" in the centre: it names no authority and carries no emblem.
+
+In both suites the condition is drawn per dossier, so both sides of a dossier share it.
 
 Usage: uv run python audits/ocr_pilot/render.py [--n 1000] [--seed 20261124] [--out audits/ocr_pilot/work]
+                                                [--suite photo|stress]
 """
 
 from __future__ import annotations
@@ -20,6 +30,7 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import math
 import random
 import unicodedata
 from dataclasses import asdict, dataclass
@@ -166,10 +177,92 @@ def photo(img: Image.Image, rng: random.Random) -> Image.Image:
     return Image.open(io.BytesIO(buf.getvalue())).convert("L")
 
 
-def render_dossier(args: tuple[int, int, str]) -> tuple[list[dict], dict]:
-    i, seed, out = args
+STRESS = ("clean", "skew3", "skew7", "stamp_light", "stamp_heavy", "lowdpi", "combined")
+STAMP_RED = np.array([196, 32, 44], dtype=np.float32) / 255
+STAMP_RING = "MẪU · KHÔNG CÓ GIÁ TRỊ PHÁP LÝ · MẪU · KHÔNG CÓ GIÁ TRỊ PHÁP LÝ · "
+STAMP_FONT = PRINT_FONTS[1]  # Arial Bold
+
+
+def stamp_mask(diam: int, rng: random.Random) -> np.ndarray:
+    """Coverage (0-1) of a round stamp: two rings, text around the rim, a word in the centre,
+    and uneven ink."""
+    m = Image.new("L", (diam, diam), 0)
+    d = ImageDraw.Draw(m)
+    w = max(2, diam // 45)
+    d.ellipse([w, w, diam - w, diam - w], outline=255, width=2 * w)
+    r_in = int(diam * 0.31)
+    c = diam / 2
+    d.ellipse([c - r_in, c - r_in, c + r_in, c + r_in], outline=255, width=w)
+    size = max(8, int(diam * 0.075))
+    font = ImageFont.truetype(STAMP_FONT[0], size, index=STAMP_FONT[1])
+    radius = c - 3 * w - size * 0.6
+    start = rng.uniform(0, 360)
+    for j, ch in enumerate(STAMP_RING):
+        theta = math.radians(start + 360 * j / len(STAMP_RING))
+        glyph = Image.new("L", (2 * size, 2 * size), 0)
+        ImageDraw.Draw(glyph).text((size, size), ch, font=font, fill=255, anchor="mm")
+        glyph = glyph.rotate(-math.degrees(theta), resample=Image.BICUBIC)
+        x, y = c + radius * math.sin(theta), c - radius * math.cos(theta)
+        m.paste(255, (int(x - size), int(y - size)), glyph)
+    big = ImageFont.truetype(STAMP_FONT[0], int(diam * 0.16), index=STAMP_FONT[1])
+    d.text((c, c), "MẪU", font=big, fill=255, anchor="mm")
+    a = np.asarray(m, dtype=np.float32) / 255
+    nrng = np.random.default_rng(rng.randrange(2**32))
+    blot = Image.fromarray((nrng.random(a.shape) * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(diam / 60))
+    b = np.asarray(blot, dtype=np.float32) / 255
+    return np.clip(a * (0.35 + 1.3 * (b - b.mean() + 0.5)), 0, 1)
+
+
+def stamp(img: Image.Image, size: int, heavy: bool, rng: random.Random) -> Image.Image:
+    """Multiply a red stamp over the line. A real stamp is many lines tall, so a line crop shows
+    one horizontal band of it: rim text and rings, or the centre word."""
+    base = np.asarray(img.convert("RGB"), dtype=np.float32) / 255
+    h, w, _ = base.shape
+    diam = int(size * rng.uniform(5.0, 8.0))
+    mask = stamp_mask(diam, rng)
+    cx = rng.uniform(0.25, 0.75) * w if heavy else rng.uniform(0, w)
+    cy = h / 2 + rng.uniform(-0.25, 0.25) * diam if heavy else h / 2 + rng.uniform(-0.45, 0.45) * diam
+    alpha = rng.uniform(0.75, 0.95) if heavy else rng.uniform(0.35, 0.6)
+    cov = np.zeros((h, w), dtype=np.float32)
+    x0, y0 = int(cx - diam / 2), int(cy - diam / 2)
+    xs, ys = max(0, x0), max(0, y0)
+    xe, ye = min(w, x0 + diam), min(h, y0 + diam)
+    if xs < xe and ys < ye:
+        cov[ys:ye, xs:xe] = mask[ys - y0 : ye - y0, xs - x0 : xe - x0] * alpha
+    out = base * (1 - cov[..., None] + cov[..., None] * STAMP_RED)
+    return Image.fromarray((out * 255).round().astype(np.uint8))
+
+
+def skew(img: Image.Image, degrees: float, rng: random.Random) -> Image.Image:
+    angle = rng.choice((-1, 1)) * rng.uniform(degrees - 0.5, degrees + 0.5)
+    return img.convert("RGB").rotate(angle, resample=Image.BICUBIC, expand=True, fillcolor=(255, 255, 255))
+
+
+def low_dpi(img: Image.Image, rng: random.Random) -> Image.Image:
+    f = rng.uniform(0.30, 0.45)
+    return img.convert("RGB").resize((max(1, int(img.width * f)), max(1, int(img.height * f))), Image.BOX)
+
+
+def stress(img: Image.Image, cond: str, size: int, rng: random.Random) -> Image.Image:
+    if cond in ("stamp_light", "stamp_heavy"):
+        return stamp(img, size, cond == "stamp_heavy", rng)
+    if cond in ("skew3", "skew7"):
+        return skew(img, 3.0 if cond == "skew3" else 7.0, rng)
+    if cond == "lowdpi":
+        return low_dpi(img, rng)
+    if cond == "combined":
+        img = stamp(img, size, rng.random() < 0.5, rng)
+        return low_dpi(skew(img, rng.uniform(3.0, 7.0), rng), rng)
+    return img.convert("RGB")
+
+
+def render_dossier(args: tuple[int, int, str, str]) -> tuple[list[dict], dict]:
+    i, seed, out, suite = args
     texts, truth, rng = dossier_texts(i, seed)
-    degrade = "photo" if rng.random() < 0.5 else "clean"
+    if suite == "stress":
+        degrade = STRESS[i % len(STRESS)]
+    else:
+        degrade = "photo" if rng.random() < 0.5 else "clean"
     crops = []
     folder = Path(out) / "img" / f"{i:05d}"
     folder.mkdir(parents=True, exist_ok=True)
@@ -179,7 +272,9 @@ def render_dossier(args: tuple[int, int, str]) -> tuple[list[dict], dict]:
         else:
             font, size = rng.choice(HAND_FONTS), rng.randint(36, 56)
         img = draw_line(texts[field], font, size, rng)
-        if degrade == "photo":
+        if suite == "stress":
+            img = stress(img, degrade, size, rng)
+        elif degrade == "photo":
             img = photo(img, rng)
         path = folder / f"{field}.png"
         img.save(path)
@@ -193,11 +288,12 @@ def main() -> None:
     ap.add_argument("--n", type=int, default=1000)
     ap.add_argument("--seed", type=int, default=20261124)
     ap.add_argument("--out", default="audits/ocr_pilot/work")
+    ap.add_argument("--suite", choices=("photo", "stress"), default="photo")
     args = ap.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     with Pool() as pool:
-        results = pool.map(render_dossier, [(i, args.seed, str(out)) for i in range(args.n)], chunksize=8)
+        results = pool.map(render_dossier, [(i, args.seed, str(out), args.suite) for i in range(args.n)], chunksize=8)
     with open(out / "crops.jsonl", "w", encoding="utf-8") as fh:
         for crops, _ in results:
             for c in crops:

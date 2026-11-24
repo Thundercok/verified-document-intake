@@ -5,7 +5,8 @@ with real engines reading rendered images, and asks the question the system exis
 gate auto-accept a share of fields with a certified error rate, and do the verifiers make that
 share larger?**
 
-Numbers: [RESULTS.md](RESULTS.md), fresh confirmation batch [RESULTS_confirm.md](RESULTS_confirm.md). Risk–coverage curves: [risk_coverage.svg](risk_coverage.svg).
+Numbers: [RESULTS.md](RESULTS.md), fresh confirmation batch [RESULTS_confirm.md](RESULTS_confirm.md),
+stress suite [RESULTS_stress.md](RESULTS_stress.md). Risk–coverage curves: [risk_coverage.svg](risk_coverage.svg).
 
 ## Findings
 
@@ -118,6 +119,100 @@ on the fresh batch even with the lexicon, but for lack of samples, not because o
 Vision verifier matched 272 addresses with zero errors, yet only 159 of them are in calibration,
 fewer than the 230 needed. The fresh batch happened to contain no "Áp" misread.
 
+## Stress suite: red stamp, skew, low DPI
+
+The research plan's perturbations, on a separate batch (`render.py --suite stress`, seed
+20261126, [RESULTS_stress.md](RESULTS_stress.md)). There are 2100 dossiers, 300 for each of seven
+conditions:
+
+- `clean`;
+- `skew3` and `skew7` (rotation by about ±3° and ±7°);
+- `stamp_light` and `stamp_heavy`, a red round seal multiplied over the crop;
+- `lowdpi`, downsampled to 30–45% of the linear size;
+- `combined`: a stamp, then skew of 3–7°, then low DPI.
+
+Each crop gets its own stamp, so the two copies of a field are perturbed independently.
+
+The seal is 5–8 times the font height and crosses the line at a random place. A heavy seal lies
+over the text at 75–95% opacity; a light one may only graze it, at 35–60%. Its text reads
+"MẪU · KHÔNG CÓ GIÁ TRỊ PHÁP LÝ" ("sample, no legal value"). It names no authority and carries no
+emblem.
+
+The stamp is the perturbation that matters. Vision's semantic error rate rises from 10.6% (clean)
+to 44.1% (`stamp_light`) and 74.7% (`stamp_heavy`). Skew barely moves Vision (11.4%) but doubles
+Tesseract's errors at 7° (34.3% → 67.9%). Low DPI roughly doubles both engines' errors.
+
+**H1 holds in every condition.** No engine's raw confidence reaches 1% risk at 90% coverage in
+any of the 14 engine × condition cells:
+
+- **Vision** confidence carries no information. Its Risk@90% equals its error rate in every
+  condition (10.0% clean, 72.2% `stamp_heavy`). Its calibration error grows with the
+  perturbation (ECE 0.10 → 0.64), because it still says 1.0.
+- **Tesseract** confidence does rank crops: AURC 0.086 against an error rate of 0.343 on clean
+  crops. Even so, its Risk@90% is 27.1% at best and 94.7% under `combined`.
+
+**Transfer.** Each gate is calibrated on the main batch (all 1980 dossiers ≥ 20, clean and
+phone-photo) and applied unchanged to each condition. Each cell gives the coverage pooled over
+strata and, in brackets, the accepted errors. ⚠ marks empirical risk above α.
+
+| System | clean | skew3 | skew7 | stamp_light | stamp_heavy | lowdpi | combined |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Tesseract confidence (`amount`, `mst`) | 93.0% (1) | 92.5% (7) ⚠ | 33.3% (22) ⚠ | 25.0% (9) ⚠ | 4.0% (10) ⚠ | 58.7% (14) ⚠ | 1.7% (1) ⚠ |
+| Vision n-best agreement (`mst`) | 100% (1) | 100% (2) | 100% (0) | 100% (60) ⚠ | 100% (163) ⚠ | 100% (11) ⚠ | 100% (197) ⚠ |
+| Vision verifier + lexicon | 80.3% (0) | 79.2% (0) | 79.3% (0) | 27.8% (0) | 9.9% (4) ⚠ | 66.4% (2) | 8.0% (4) ⚠ |
+| Tesseract verifier + lexicon | 50.1% (1) | 46.1% (2) | 17.1% (11) ⚠ | 13.2% (4) ⚠ | 2.6% (7) ⚠ | 44.4% (1) | 1.2% (2) ⚠ |
+| Vision verifier + Tesseract agrees | 59.9% (0) | 57.2% (0) | 31.8% (0) | 12.8% (0) | 2.3% (0) | 50.4% (0) | 1.8% (0) |
+
+1. **Score thresholds break as soon as the images change.** Tesseract's confidence threshold
+   already leaks at ±3° skew and reaches 11% risk at ±7°. Vision's n-best gate for `mst`
+   certified "accept everything" on the main batch, where tax codes were almost never wrong. It
+   keeps accepting everything under the stamp, where they are wrong more than half the time
+   (163 of 300). A score threshold calibrated on one image distribution says nothing about
+   another.
+2. **Comparison across documents holds; the verifiers refuse instead.** Under every perturbation,
+   the Vision verifier accepted zero errors in the strata it checks by comparing two copies or
+   by comparing against the card number (`date`, `cccd`, `amount`, `sex`, and `name` and
+   `address` with the lexicon). The exception is two `name` errors under `lowdpi`, "Hoà" read as
+   "Hoa" on both copies: a valid name read as another valid name, the lexicon's known blind spot.
+   Coverage falls from 80% to 8–10% under heavy stamps, so the cost of the perturbation is
+   review work, not risk. Two independently perturbed copies rarely agree on the same wrong
+   value.
+3. **A check on a single copy does not transfer.** Six of the Vision verifier's ten accepted
+   errors are tax codes. The mod-11 check digit covers only the first ten digits, so four errors
+   sit in the three-digit branch suffix, which has no check digit ("-160" → "-190"). The other
+   two are multi-digit misreads that hit a valid check digit by chance. The accepted share of
+   wrong codes, P(pass | error), is small (2 of 163 wrong codes under `stamp_heavy`). But risk
+   among the accepted is P(error) · P(pass | error) / P(accept). When the stamp raises P(error)
+   for `mst` from under 1% to over 50%, risk rises past α although the check itself has not
+   changed. Comparison has no such floor, because its P(pass | error) is the chance that two
+   independent misreads coincide.
+4. **A second engine closes the gap here.** Requiring Tesseract to agree removes every accepted
+   error in every condition, `mst` included, because two engines rarely produce the same valid
+   wrong code. On the main batch the same requirement bought nothing (finding 4). Its value shows
+   only when the image distribution moves. The cost is coverage: 1.8% under `combined`, too few
+   accepted units for a tight bound (UB 8.9%).
+
+The other two Vision errors are `place` units and an artefact of scoring. The verifier reads the
+province from the last comma-separated part. For "Thàch phố, Đà Nắng" and ".MAU, Thành phố Cân Thơ"
+it finds the right province, which also matches the card. The scoring key resolves the whole
+string, fails on the misread prefix, and counts the unit as unparsable. A system that emits the
+province it verified would be right; the counts above keep these as errors. Tesseract's 11 errors
+under `skew7` are mostly tax codes again (9). The rest are one place and one date: the date
+parser read "1 5/07/2006" and "i5/07/2006" both as 05/07/2006, so the copies agreed.
+
+**Within the stress batch.** One Mondrian gate over field types is calibrated on 60% of the
+stress dossiers with all conditions mixed. The Vision verifier + lexicon then certifies six
+strata. On the held-out 40% it meets the guarantee on average: 6 errors in 2884 accepted units
+(0.21%, UB 0.41%). The average hides the conditions that carry the errors: 3 of 108 accepted
+under `stamp_heavy` (2.8%) and 3 of 76 under `combined` (3.9%). A marginal guarantee is an
+average over the mixture of conditions in calibration. A dossier with a heavy stamp gets the risk
+of its own condition, not the average.
+
+The fix suggested by the data is to make the condition a stratum. That requires observing it
+without the truth, for example the share of red pixels in a crop, which is cheap to measure
+before OCR. This is not done here. Tesseract confidence certifies nothing within the stress
+batch, and the Tesseract verifier + lexicon certifies only `sex`.
+
 ## Setup
 
 | Piece | What |
@@ -189,11 +284,15 @@ uv run python audits/ocr_pilot/analyze.py --md audits/ocr_pilot/RESULTS.md --svg
 # fresh confirmation batch: render.py --n 1000 --seed 20261125 --out audits/ocr_pilot/work_fresh, the same two OCR
 # commands on its paths.txt, then:
 uv run python audits/ocr_pilot/analyze.py --work audits/ocr_pilot/work_fresh --skip-below 0 --md audits/ocr_pilot/RESULTS_confirm.md
+# stress suite: render.py --suite stress --n 2100 --seed 20261126 --out audits/ocr_pilot/work_stress, the same two
+# OCR commands on its paths.txt, then (needs the main batch in work/ for §3):
+uv run python audits/ocr_pilot/stress.py --md audits/ocr_pilot/RESULTS_stress.md
 ```
 
 `paths_vlm.txt` is the crops of dossiers 0–249. Tesseract needs `data/tessdata/vie.traineddata`
 (tessdata_best); the VLM needs `mlx-community/Qwen3.5-4B-MLX-4bit` in the Hugging Face cache.
-Generated images and OCR outputs live in `audits/ocr_pilot/work/` and `work_fresh/` (gitignored).
+Generated images and OCR outputs live in `audits/ocr_pilot/work/`, `work_fresh/` and `work_stress/`
+(gitignored).
 
 ## Limits
 
@@ -209,3 +308,7 @@ Generated images and OCR outputs live in `audits/ocr_pilot/work/` and `work_fres
 - **The VLM subset is small.** 230 usable dossiers give 135 calibration units per stratum, fewer
   than the 230 that a zero-error certificate at α = 1% needs, so Qwen systems cannot certify
   anything here whatever their accuracy. Their rows are reported for accuracy and empirical risk.
+- **The perturbations are models.** The seal is a generic drawn ring, not a scanned one. Real red
+  ink can be removed by colour filtering before OCR, which this pilot does not try. A real stamp
+  also lies on one document of the pair, and may cover several fields of it at once. Here each
+  crop is stamped independently, which favours comparison.
