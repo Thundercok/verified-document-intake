@@ -38,9 +38,11 @@ from run import KEYS, _cccd_all, _pick  # noqa: E402  (the step-3 harness: same 
 from document_intake.verify import (  # noqa: E402
     Check,
     Verdict,
+    check_address_typical,
     check_amount,
     check_cccd_consistency,
     check_mst,
+    check_name_typical,
     clean,
     compare_addresses,
     compare_dates,
@@ -186,10 +188,17 @@ class Stratum:
     fields: tuple[str, ...]  # values emitted together: the unit is wrong if any of them is
     verify: Callable[[dict[str, str]], Check]  # sees every OCR'd field of the dossier (evidence)
     checks: str
+    typical: Callable[[dict[str, str]], bool] | None = None  # lexicon check on the emitted values
 
 
 STRATA = (
-    Stratum("name", ("name_A", "name_B"), lambda t: compare_names(t["name_A"], t["name_B"]), "V_NAME"),
+    Stratum(
+        "name",
+        ("name_A", "name_B"),
+        lambda t: compare_names(t["name_A"], t["name_B"]),
+        "V_NAME",
+        lambda t: check_name_typical(t["name_A"]).ok and check_name_typical(t["name_B"]).ok,
+    ),
     Stratum(
         "date",
         ("dob_A", "dob_B"),
@@ -204,7 +213,13 @@ STRATA = (
         lambda t: _cccd_all(t["cccd_A"], t["cccd_B"], (t["dob_A"], t["sex_B"], t["place_B"])),
         "V_ID + CCCD format/year/sex/province on both copies",
     ),
-    Stratum("address", ("addr_A", "addr_B"), lambda t: compare_addresses(t["addr_A"], t["addr_B"]), "V_ADDR"),
+    Stratum(
+        "address",
+        ("addr_A", "addr_B"),
+        lambda t: compare_addresses(t["addr_A"], t["addr_B"]),
+        "V_ADDR",
+        lambda t: all(check_address_typical(parse_address(t[f]).street).ok for f in ("addr_A", "addr_B")),
+    ),
     Stratum(
         "amount",
         ("money_digits",),  # the amount is emitted from the digits; the words are evidence
@@ -251,6 +266,7 @@ def build_units(crops: dict, dossiers: dict, reads: dict[str, dict]) -> list[Uni
                     "conf": min(r.conf for r in rs),
                     "nbest": min(r.nbest for r in rs),
                     "texts": [r.text for r in rs],
+                    "typical": s.typical(texts[e]) if s.typical else True,
                 }
             agree = {
                 a + b: all(reads[a][d, f].key == reads[b][d, f].key for f in s.fields)
@@ -279,11 +295,18 @@ def _m(u: Unit, e: str) -> bool:
     return u.by[e]["verdict"] is Verdict.MATCH
 
 
+def _ml(u: Unit, e: str) -> bool:
+    """Verifier MATCH and no emitted value is a near miss of a typical name or address word."""
+    return _m(u, e) and u.by[e]["typical"]
+
+
 SYSTEMS = (
     System("Tesseract confidence", "T", lambda u: u.by["T"]["conf"], CONF_GRID, ("T",)),
     System("Vision n-best agreement", "V", lambda u: u.by["V"]["nbest"], CONF_GRID, ("V",)),
     System("Vision verifier", "V", lambda u: 1.0 if _m(u, "V") else None, (1.0,), ("V",)),
     System("Tesseract verifier", "T", lambda u: 1.0 if _m(u, "T") else None, (1.0,), ("T",)),
+    System("Vision verifier + lexicon", "V", lambda u: 1.0 if _ml(u, "V") else None, (1.0,), ("V",)),
+    System("Tesseract verifier + lexicon", "T", lambda u: 1.0 if _ml(u, "T") else None, (1.0,), ("T",)),
     System(
         "Tesseract verifier + confidence", "T", lambda u: u.by["T"]["conf"] if _m(u, "T") else None, CONF_GRID, ("T",)
     ),
@@ -541,17 +564,20 @@ def missed_examples(units: list[Unit], limit: int = 25) -> list[str]:
         "## 5. Errors the verifiers accepted",
         "",
         "Every unit with a MATCH verdict that is wrong, for the two full-scale engines (up to "
-        f"{limit} each). These are what a verifier gate lets through.",
+        f"{limit} each). These are what a verifier gate lets through. *Lexicon* marks the ones "
+        "the typicality check (`verify/lexicon.py`) sends to review.",
         "",
     ]
     for e in ("V", "T"):
         rows = [u for u in units if e in u.by and u.by[e]["err"] and u.by[e]["verdict"] is Verdict.MATCH]
-        out += [f"### {ENGINES[e][0]}: {len(rows)} accepted errors", ""]
+        caught = sum(not u.by[e]["typical"] for u in rows)
+        out += [f"### {ENGINES[e][0]}: {len(rows)} accepted errors, {caught} flagged by the lexicon", ""]
         if rows:
-            out += ["| Dossier | Stratum | Degradation | OCR values |", "|---:|---|---|---|"]
+            out += ["| Dossier | Stratum | Degradation | OCR values | Lexicon |", "|---:|---|---|---|---|"]
         for u in rows[:limit]:
             vals = " ‖ ".join(t.replace("|", "\\|") for t in u.by[e]["texts"])
-            out.append(f"| {u.dossier} | {u.stratum} | {u.degrade} | {vals} |")
+            flag = "flagged" if not u.by[e]["typical"] else ""
+            out.append(f"| {u.dossier} | {u.stratum} | {u.degrade} | {vals} | {flag} |")
         out.append("")
     return out
 
@@ -563,13 +589,13 @@ def svg_curves(curves: dict, path: Path) -> None:
         ("Tesseract verifier + confidence", "#1f77b4"),
         ("Vision verifier + n-best", "#d62728"),
         ("Vision verifier + Tesseract agrees", "#2ca02c"),
-        ("Qwen verifier + confidence", "#9467bd"),
+        # Qwen is left out: its subset is too small for a curve to mean anything.
     ]
     w, h, pad, cols = 260, 200, 36, 4
     rows = math.ceil(len(STRATA) / cols)
     ymax = 0.10
     parts = [
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{cols * w}" height="{rows * h + 60}" font-family="Helvetica" '
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{cols * w}" height="{rows * h + 80}" font-family="Helvetica" '
         'font-size="11"><rect width="100%" height="100%" fill="white"/>'
     ]
     for i, s in enumerate(STRATA):
@@ -595,11 +621,11 @@ def svg_curves(curves: dict, path: Path) -> None:
             parts.append(f'<polyline points="{d}" fill="none" stroke="{color}" stroke-width="1.5"/>')
     ly = rows * h + 20
     for j, (name, color) in enumerate(systems):
-        lx = 10 + j * 210
-        parts.append(f'<line x1="{lx}" x2="{lx + 20}" y1="{ly}" y2="{ly}" stroke="{color}" stroke-width="2"/>')
-        parts.append(f'<text x="{lx + 25}" y="{ly + 4}">{name}</text>')
+        lx, ly_j = 10 + (j % 2) * 360, ly + (j // 2) * 18
+        parts.append(f'<line x1="{lx}" x2="{lx + 20}" y1="{ly_j}" y2="{ly_j}" stroke="{color}" stroke-width="2"/>')
+        parts.append(f'<text x="{lx + 25}" y="{ly_j + 4}">{name}</text>')
     parts.append(
-        f'<text x="10" y="{ly + 30}">x: coverage (held-out), y: selective risk (clipped at {ymax:g}); '
+        f'<text x="10" y="{ly + 46}">x: coverage (held-out), y: selective risk (clipped at {ymax:g}); '
         f"dashed: alpha = {ALPHA:g}</text></svg>"
     )
     path.write_text("\n".join(parts), encoding="utf-8")
