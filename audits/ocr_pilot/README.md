@@ -36,8 +36,8 @@ gate accepts. Cells without an error count had **zero** accepted errors on the h
    by both copies come from the source. Real OCR makes them itself, and systematically: the same
    engine drops the same tone mark on the printed card and on the handwritten form ("Thụy"/"THUỴ" →
    "Thuy", "Trần" → "Trân", "Nguyễn" → "Nguyên", "Đỗ" → "Đô", "Ấp" → "Áp"). Of the 27 errors the Vision
-   verifiers accepted, 21 are names and 6 are addresses, all of this kind (Tesseract: 36 names, 7
-   tax codes, 2 places). This is why `name` and
+   verifiers accepted, 21 are names and 6 are addresses, all of this kind (Tesseract: 36 names and
+   7 tax codes). This is why `name` and
    `address` cannot be certified by comparison alone. Comparison cannot see the error, so the
    evidence must come from outside the pair; see *The lexicon check* below.
 4. **Engine errors are correlated, too.** Vision and Tesseract are wrong on the same crop 2.4× as
@@ -49,8 +49,7 @@ gate accepts. Cells without an error count had **zero** accepted errors on the h
    overall while the `name` stratum runs at 6.9%.
 6. **Scores cost samples.** A score-free verifier tests one threshold (230 error-free calibration
    units certify 1%); a scored system tests ten at δ/10 and needs 459. Tesseract verifier +
-   confidence therefore certifies *less* than the verifier alone (`date`, `cccd`, `amount`,
-   `place`).
+   confidence therefore certifies *less* than the verifier alone (`date`, `cccd`, `amount`).
 
 **Qwen3.5-4B** (230 usable dossiers, too few to certify anything at α = 1%; see Limits) is the most
 accurate engine on handwriting-style crops (8.4% / 11.0% semantic errors clean / photo, against
@@ -91,7 +90,7 @@ On the main batch (same split as above):
 | Vision verifier | — | — | |
 | Vision verifier + lexicon | **63.8%** (2 errors, risk 0.4%, UB 1.2%) | **25.3%** | 25 / 27 |
 | Tesseract verifier | — | — | |
-| Tesseract verifier + lexicon | **30.6%** | — | 36 / 45 (all 36 name errors) |
+| Tesseract verifier + lexicon | **30.6%** | — | 36 / 43 (all 36 name errors) |
 
 The other strata are unchanged, because the check applies only to names and addresses. On units
 that the verifier matched and that were correct, the check raised no false alarms. That zero
@@ -159,9 +158,9 @@ strata and, in brackets, the accepted errors. ⚠ marks empirical risk above α.
 |---|---:|---:|---:|---:|---:|---:|---:|
 | Tesseract confidence (`amount`, `mst`) | 93.0% (1) | 92.5% (7) ⚠ | 33.3% (22) ⚠ | 25.0% (9) ⚠ | 4.0% (10) ⚠ | 58.7% (14) ⚠ | 1.7% (1) ⚠ |
 | Vision n-best agreement (`mst`) | 100% (1) | 100% (2) | 100% (0) | 100% (60) ⚠ | 100% (163) ⚠ | 100% (11) ⚠ | 100% (197) ⚠ |
-| Vision verifier + lexicon | 80.3% (0) | 79.2% (0) | 79.3% (0) | 27.8% (0) | 9.9% (4) ⚠ | 66.4% (2) | 8.0% (4) ⚠ |
-| Tesseract verifier + lexicon | 50.1% (1) | 46.1% (2) | 17.1% (11) ⚠ | 13.2% (4) ⚠ | 2.6% (7) ⚠ | 44.4% (1) | 1.2% (2) ⚠ |
-| Vision verifier + Tesseract agrees | 59.9% (0) | 57.2% (0) | 31.8% (0) | 12.8% (0) | 2.3% (0) | 50.4% (0) | 1.8% (0) |
+| Vision verifier + lexicon | 80.3% (0) | 79.2% (0) | 79.3% (0) | 27.8% (0) | 9.9% (2) | 66.4% (2) | 8.0% (4) ⚠ |
+| Tesseract verifier + lexicon | 50.1% (0) | 46.1% (1) | 17.1% (10) ⚠ | 13.2% (4) ⚠ | 2.6% (7) ⚠ | 44.4% (1) | 1.2% (2) ⚠ |
+| Vision verifier + Tesseract agrees | 60.0% (0) | 57.3% (0) | 31.9% (0) | 12.8% (0) | 2.3% (0) | 50.4% (0) | 1.8% (0) |
 
 1. **Score thresholds break as soon as the images change.** Tesseract's confidence threshold
    already leaks at ±3° skew and reaches 11% risk at ±7°. Vision's n-best gate for `mst`
@@ -171,13 +170,13 @@ strata and, in brackets, the accepted errors. ⚠ marks empirical risk above α.
    another.
 2. **Comparison across documents holds; the verifiers refuse instead.** Under every perturbation,
    the Vision verifier accepted zero errors in the strata it checks by comparing two copies or
-   by comparing against the card number (`date`, `cccd`, `amount`, `sex`, and `name` and
-   `address` with the lexicon). The exception is two `name` errors under `lowdpi`, "Hoà" read as
+   by comparing against the card number (`date`, `cccd`, `amount`, `sex`, `place`, and `name`
+   and `address` with the lexicon). The exception is two `name` errors under `lowdpi`, "Hoà" read as
    "Hoa" on both copies: a valid name read as another valid name, the lexicon's known blind spot.
    Coverage falls from 80% to 8–10% under heavy stamps, so the cost of the perturbation is
    review work, not risk. Two independently perturbed copies rarely agree on the same wrong
    value.
-3. **A check on a single copy does not transfer.** Six of the Vision verifier's ten accepted
+3. **A check on a single copy does not transfer.** Six of the Vision verifier's eight accepted
    errors are tax codes. The mod-11 check digit covers only the first ten digits, so four errors
    sit in the three-digit branch suffix, which has no check digit ("-160" → "-190"). The other
    two are multi-digit misreads that hit a valid check digit by chance. The accepted share of
@@ -192,26 +191,21 @@ strata and, in brackets, the accepted errors. ⚠ marks empirical risk above α.
    only when the image distribution moves. The cost is coverage: 1.8% under `combined`, too few
    accepted units for a tight bound (UB 8.9%).
 
-The other two Vision errors are `place` units and an artefact of scoring. The verifier reads the
-province from the last comma-separated part. For "Thàch phố, Đà Nắng" and ".MAU, Thành phố Cân Thơ"
-it finds the right province, which also matches the card. The scoring key resolves the whole
-string, fails on the misread prefix, and counts the unit as unparsable. A system that emits the
-province it verified would be right; the counts above keep these as errors. Tesseract's 11 errors
-under `skew7` are mostly tax codes again (9). The rest are one place and one date: the date
-parser read "1 5/07/2006" and "i5/07/2006" both as 05/07/2006, so the copies agreed.
+Tesseract's 10 errors under `skew7` are tax codes again (9) and one date. The date parser read
+"1 5/07/2006" and "i5/07/2006" both as 05/07/2006, so the copies agreed.
 
 **Within the stress batch.** One Mondrian gate over field types is calibrated on 60% of the
 stress dossiers with all conditions mixed. The Vision verifier + lexicon then certifies six
-strata. On the held-out 40% it meets the guarantee on average: 6 errors in 2884 accepted units
-(0.21%, UB 0.41%). The average hides the conditions that carry the errors: 3 of 108 accepted
-under `stamp_heavy` (2.8%) and 3 of 76 under `combined` (3.9%). A marginal guarantee is an
+strata. On the held-out 40% it meets the guarantee on average: 5 errors in 2884 accepted units
+(0.17%, UB 0.36%). The average hides the conditions that carry the errors: 2 of 108 accepted
+under `stamp_heavy` (1.9%) and 3 of 76 under `combined` (3.9%), all of them tax codes. A marginal guarantee is an
 average over the mixture of conditions in calibration. A dossier with a heavy stamp gets the risk
 of its own condition, not the average.
 
 The fix suggested by the data is to make the condition a stratum. That requires observing it
 without the truth, for example the share of red pixels in a crop, which is cheap to measure
 before OCR. This is not done here. Tesseract confidence certifies nothing within the stress
-batch, and the Tesseract verifier + lexicon certifies only `sex`.
+batch, and the Tesseract verifier + lexicon certifies only `sex` and `place`.
 
 ## Setup
 
@@ -270,6 +264,17 @@ so the verifiers raised false alarms on correct values:
 
 Both have tests. Step 3's results were regenerated after the fixes (`audits/verifier_eval/RESULTS.md`);
 they move by at most a few tenths of a point.
+
+The stress suite turned up a third mismatch, this time in the scoring. The `place` verifier reads
+the province from the last comma-separated part of the text, but the scoring key resolved the
+whole string. A stamp-polluted reading such as "Thàch phố, Đà Nắng" was then verified as Đà Nẵng
+(right, and matching the card) yet scored as unparsable. The key is now the province the verifier
+read. It falls back to resolving the whole string only when that parse finds nothing ("Thành phố
+Hả, Nội"), so an accepted unit is scored on exactly the value that was checked. The change removed
+2 accepted Tesseract errors on the main batch and 1 on the fresh batch, all misread forms of
+Bà Rịa - Vũng Tàu ("Đà Rịa - Vũng Tàu"). It also removed 2 Vision errors under `stamp_heavy`. It
+also lets Tesseract verifier + confidence certify `place`. The Vision verifier's numbers on the
+main and fresh batches did not change.
 
 ## Reproduce
 

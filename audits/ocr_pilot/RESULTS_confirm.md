@@ -35,7 +35,7 @@ Semantic error rate by field:
 | `money_words` | 27.3% | 68.3% |
 | `mst` | 0.4% | 2.9% |
 | `sex_B` | 11.3% | 37.1% |
-| `place_B` | 1.8% | 44.2% |
+| `place_B` | 1.8% | 44.1% |
 
 ## 2. Collisions
 
@@ -81,7 +81,7 @@ A score-free system tests one threshold; a scored one tests 10 at delta/10
 | amount | 0.95 | 81.5% | 326 | 0 | 0.0% | 0.9% | 3.5% |
 | mst | 0.95 | 84.2% | 337 | 0 | 0.0% | 0.9% | 2.0% |
 | sex | — | 0.0% | 0 | 0 | — | — | 39.5% |
-| place | — | 0.0% | 0 | 0 | — | — | 45.5% |
+| place | — | 0.0% | 0 | 0 | — | — | 45.2% |
 
 ### Vision n-best agreement
 
@@ -126,7 +126,7 @@ A score-free system tests one threshold; a scored one tests 10 at delta/10
 | amount | — | 0.0% | 0 | 0 | — | — | 3.5% |
 | mst | 1 | 97.8% | 391 | 0 | 0.0% | 0.8% | 2.0% |
 | sex | 1 | 57.8% | 231 | 0 | 0.0% | 1.3% | 39.5% |
-| place | 1 | 52.8% | 211 | 1 | 0.5% | 2.2% | 45.5% |
+| place | 1 | 52.8% | 211 | 0 | 0.0% | 1.4% | 45.2% |
 
 ### Vision verifier + lexicon
 
@@ -156,7 +156,7 @@ A score-free system tests one threshold; a scored one tests 10 at delta/10
 | amount | — | 0.0% | 0 | 0 | — | — | 3.5% |
 | mst | 1 | 97.8% | 391 | 0 | 0.0% | 0.8% | 2.0% |
 | sex | 1 | 57.8% | 231 | 0 | 0.0% | 1.3% | 39.5% |
-| place | 1 | 52.8% | 211 | 1 | 0.5% | 2.2% | 45.5% |
+| place | 1 | 52.8% | 211 | 0 | 0.0% | 1.4% | 45.2% |
 
 ### Tesseract verifier + confidence
 
@@ -171,7 +171,7 @@ A score-free system tests one threshold; a scored one tests 10 at delta/10
 | amount | — | 0.0% | 0 | 0 | — | — | 3.5% |
 | mst | 0.95 | 84.2% | 337 | 0 | 0.0% | 0.9% | 2.0% |
 | sex | — | 0.0% | 0 | 0 | — | — | 39.5% |
-| place | — | 0.0% | 0 | 0 | — | — | 45.5% |
+| place | — | 0.0% | 0 | 0 | — | — | 45.2% |
 
 ### Vision verifier + n-best
 
@@ -201,7 +201,7 @@ A score-free system tests one threshold; a scored one tests 10 at delta/10
 | amount | 1 | 67.5% | 270 | 0 | 0.0% | 1.1% | 1.2% |
 | mst | 1 | 97.5% | 390 | 0 | 0.0% | 0.8% | 0.5% |
 | sex | 1 | 58.5% | 234 | 0 | 0.0% | 1.3% | 12.5% |
-| place | 1 | 54.2% | 217 | 0 | 0.0% | 1.4% | 2.0% |
+| place | 1 | 54.5% | 218 | 0 | 0.0% | 1.4% | 2.0% |
 
 ## 4. Why stratify: one pooled threshold
 
@@ -217,7 +217,7 @@ Nothing certified.
 
 | Stratum | Coverage | Risk |
 |---|---:|---:|
-| **all** | 44.4% | 0.6% |
+| **all** | 44.4% | 0.5% |
 | name | 33.8% | 5.2% ⚠ |
 | date | 36.5% | 0.0% |
 | cccd | 31.2% | 0.0% |
@@ -225,7 +225,7 @@ Nothing certified.
 | amount | 31.5% | 0.0% |
 | mst | 97.8% | 0.0% |
 | sex | 57.8% | 0.0% |
-| place | 52.8% | 0.5% |
+| place | 52.8% | 0.0% |
 
 ## 5. Errors the verifiers accepted
 
@@ -245,14 +245,13 @@ Every unit with a MATCH verdict that is wrong, for the two full-scale engines (u
 | 753 | name | clean | ĐẶNG ĐỨC THUY AN ‖ ĐẶNG ĐỨC THUY AN | flagged |
 | 922 | name | clean | TRÂN MINH LOAN ‖ Trân Minh Loan | flagged |
 
-### Tesseract vie: 18 accepted errors, 16 flagged by the lexicon
+### Tesseract vie: 17 accepted errors, 16 flagged by the lexicon
 
 | Dossier | Stratum | Degradation | OCR values | Lexicon |
 |---:|---|---|---|---|
 | 61 | name | clean | ĐỖ GIA THUY ‖ ĐỖ GIA THUY | flagged |
 | 90 | name | photo | NGUYÊN KIM UYÊN HOA ‖ NGUYÊN KIM UYÊN HOA | flagged |
 | 105 | mst | clean | 2962802585-173 |  |
-| 163 | place | photo | Dà Bịa - Vũng Tàu |  |
 | 364 | name | photo | NGUYÊN THANH LAN ‖ NGUYÊN THANH LAN | flagged |
 | 428 | name | photo | ĐÔ MỸ NGỌC ‖ Đô Mỹ Ngọc | flagged |
 | 446 | name | clean | NGUYÊN VĂN TUẤN HOÀ ‖ NGUYÊN VĂN TUẤN HOÀ | flagged |

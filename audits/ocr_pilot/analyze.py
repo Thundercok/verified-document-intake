@@ -101,7 +101,10 @@ VALUE_KEYS: dict[str, Callable[[str], object]] = {
     **KEYS,
     "address": _or_unparsable(_address_value),
     "sex": _or_unparsable(lambda t: {"nam": "nam", "nu": "nữ"}.get(fold_diacritics(clean(t)))),
-    "place": _or_unparsable(resolve_province),
+    # The province the verifier read (V_CCCD_PROVINCE parses the last comma-separated part), so
+    # an accepted unit emits exactly the value that was checked; the whole-string resolution is
+    # the fallback when that parse finds nothing ("Thành phố Hả, Nội").
+    "place": _or_unparsable(lambda t: parse_address(t).province or resolve_province(t)),
 }
 CONF_GRID = (0.0, 0.3, 0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95, 0.99)
 
@@ -409,7 +412,8 @@ def ocr_tables(crops: dict, reads: dict[str, dict]) -> list[str]:
         "| Engine | Side | Degradation | Crops | Exact | Semantic error | CER |",
         "|---|---|---|---:|---:|---:|---:|",
     ]
-    degrades = list(dict.fromkeys(c["degrade"] for c in crops.values()))  # first-seen order
+    # first-seen order, "clean" first
+    degrades = sorted(dict.fromkeys(c["degrade"] for c in crops.values()), key=lambda d: d != "clean")
     for e, r in reads.items():
         for side in ("A", "B"):
             for deg in degrades:

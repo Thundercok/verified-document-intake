@@ -17,7 +17,7 @@ Exact = output equals the truth string (NFC). Semantic error = the output *says*
 | Tesseract vie | printed | clean | 5676 | 91.8% | 7.8% | 0.005 |
 | Tesseract vie | printed | photo | 6204 | 87.7% | 10.9% | 0.016 |
 | Tesseract vie | handwriting-style | clean | 6622 | 36.5% | 58.9% | 0.297 |
-| Tesseract vie | handwriting-style | photo | 7238 | 37.4% | 57.6% | 0.298 |
+| Tesseract vie | handwriting-style | photo | 7238 | 37.4% | 57.5% | 0.298 |
 | Qwen3.5-4B | printed | clean | 660 | 92.1% | 6.1% | 0.008 |
 | Qwen3.5-4B | printed | photo | 720 | 91.1% | 6.7% | 0.008 |
 | Qwen3.5-4B | handwriting-style | clean | 770 | 81.0% | 8.4% | 0.125 |
@@ -39,7 +39,7 @@ Semantic error rate by field:
 | `money_words` | 25.2% | 66.5% | 12.2% |
 | `mst` | 0.3% | 2.8% | 0.0% |
 | `sex_B` | 11.2% | 37.9% | 12.2% |
-| `place_B` | 2.9% | 46.0% | 0.4% |
+| `place_B` | 2.9% | 45.8% | 0.4% |
 
 ## 2. Collisions
 
@@ -91,7 +91,7 @@ A score-free system tests one threshold; a scored one tests 10 at delta/10
 | amount | 0.9 | 91.7% | 726 | 2 | 0.3% | 0.9% | 3.5% |
 | mst | 0.9 | 92.0% | 729 | 6 | 0.8% | 1.6% | 3.3% |
 | sex | — | 0.0% | 0 | 0 | — | — | 38.5% |
-| place | — | 0.0% | 0 | 0 | — | — | 46.2% |
+| place | — | 0.0% | 0 | 0 | — | — | 46.1% |
 
 ### Vision n-best agreement
 
@@ -136,7 +136,7 @@ A score-free system tests one threshold; a scored one tests 10 at delta/10
 | amount | 1 | 32.6% | 258 | 0 | 0.0% | 1.2% | 3.5% |
 | mst | 1 | 96.5% | 764 | 4 | 0.5% | 1.2% | 3.3% |
 | sex | 1 | 59.3% | 470 | 0 | 0.0% | 0.6% | 38.5% |
-| place | 1 | 52.0% | 412 | 0 | 0.0% | 0.7% | 46.2% |
+| place | 1 | 52.0% | 412 | 0 | 0.0% | 0.7% | 46.1% |
 
 ### Vision verifier + lexicon
 
@@ -166,7 +166,7 @@ A score-free system tests one threshold; a scored one tests 10 at delta/10
 | amount | 1 | 32.6% | 258 | 0 | 0.0% | 1.2% | 3.5% |
 | mst | 1 | 96.5% | 764 | 4 | 0.5% | 1.2% | 3.3% |
 | sex | 1 | 59.3% | 470 | 0 | 0.0% | 0.6% | 38.5% |
-| place | 1 | 52.0% | 412 | 0 | 0.0% | 0.7% | 46.2% |
+| place | 1 | 52.0% | 412 | 0 | 0.0% | 0.7% | 46.1% |
 
 ### Tesseract verifier + confidence
 
@@ -181,7 +181,7 @@ A score-free system tests one threshold; a scored one tests 10 at delta/10
 | amount | — | 0.0% | 0 | 0 | — | — | 3.5% |
 | mst | 0 | 96.5% | 764 | 4 | 0.5% | 1.2% | 3.3% |
 | sex | 0 | 59.3% | 470 | 0 | 0.0% | 0.6% | 38.5% |
-| place | — | 0.0% | 0 | 0 | — | — | 46.2% |
+| place | 0 | 52.0% | 412 | 0 | 0.0% | 0.7% | 46.1% |
 
 ### Vision verifier + n-best
 
@@ -211,7 +211,7 @@ A score-free system tests one threshold; a scored one tests 10 at delta/10
 | amount | 1 | 71.1% | 563 | 0 | 0.0% | 0.5% | 1.0% |
 | mst | 1 | 96.3% | 763 | 0 | 0.0% | 0.4% | 0.4% |
 | sex | 1 | 60.6% | 480 | 0 | 0.0% | 0.6% | 11.1% |
-| place | 1 | 53.5% | 424 | 0 | 0.0% | 0.7% | 3.2% |
+| place | 1 | 53.7% | 425 | 0 | 0.0% | 0.7% | 3.2% |
 
 ### Qwen confidence
 
@@ -331,14 +331,13 @@ Every unit with a MATCH verdict that is wrong, for the two full-scale engines (u
 | 1558 | name | photo | HUỲNH THANH THUY ‖ Huỳnh Thanh Thuy | flagged |
 | 1651 | name | photo | HỒ HỮU KHOE ‖ Hồ Hữu Khoe |  |
 
-### Tesseract vie: 45 accepted errors, 36 flagged by the lexicon
+### Tesseract vie: 43 accepted errors, 36 flagged by the lexicon
 
 | Dossier | Stratum | Degradation | OCR values | Lexicon |
 |---:|---|---|---|---|
 | 22 | name | clean | ĐỖ ĐỨC THUY ‖ Đỗ Đức Thuy | flagged |
 | 83 | name | photo | NGUYÊN ĐỨC KHOA ‖ NGUYÊN ĐỨC KHOA | flagged |
 | 115 | name | clean | ĐỖ GIA THUY ‖ Đỗ Gia Thuy | flagged |
-| 228 | place | photo | Đà Rịa - Vũng Tàu |  |
 | 310 | name | photo | NGUYÊN THANH KHOA ‖ NGUYÊN THANH KHOA | flagged |
 | 331 | mst | photo | 0983345230-070 |  |
 | 395 | name | photo | NGUYÊN THANH THUÝ ‖ NGUYÊN THANH THÚY | flagged |
@@ -360,4 +359,5 @@ Every unit with a MATCH verdict that is wrong, for the two full-scale engines (u
 | 928 | name | clean | NGUYÊN THANH THỦY QUỲNH ‖ NGUYÊN THANH THỦY QUỲNH | flagged |
 | 967 | mst | clean | 3495069159-223 |  |
 | 997 | name | photo | NGUYÊN THU THỦY ‖ NGUYÊN THU THUỶ | flagged |
+| 1067 | name | photo | VŨ QUỐC THUY ‖ Vũ Quốc Thuy | flagged |
 
