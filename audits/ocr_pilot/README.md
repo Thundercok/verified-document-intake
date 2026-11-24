@@ -6,7 +6,8 @@ gate auto-accept a share of fields with a certified error rate, and do the verif
 share larger?**
 
 Numbers: [RESULTS.md](RESULTS.md), fresh confirmation batch [RESULTS_confirm.md](RESULTS_confirm.md),
-stress suite [RESULTS_stress.md](RESULTS_stress.md). Risk–coverage curves: [risk_coverage.svg](risk_coverage.svg).
+stress suite [RESULTS_stress.md](RESULTS_stress.md), stress suite after red-ink dropout
+[RESULTS_dropout.md](RESULTS_dropout.md). Risk–coverage curves: [risk_coverage.svg](risk_coverage.svg).
 
 ## Findings
 
@@ -203,9 +204,83 @@ average over the mixture of conditions in calibration. A dossier with a heavy st
 of its own condition, not the average.
 
 The fix suggested by the data is to make the condition a stratum. That requires observing it
-without the truth, for example the share of red pixels in a crop, which is cheap to measure
-before OCR. This is not done here. Tesseract confidence certifies nothing within the stress
-batch, and the Tesseract verifier + lexicon certifies only `sex` and `place`.
+without the truth. The share of red pixels in a crop is such a measure, cheap to take before OCR;
+see the next section. Tesseract confidence certifies nothing within the stress batch, and the
+Tesseract verifier + lexicon certifies only `sex` and `place`.
+
+## Red-ink dropout
+
+`dropout.py` reads every crop through its red channel and sets clearly red pixels to white. A
+pixel counts as clearly red when its red value exceeds both others by more than 40/255. Red seal
+ink reflects red light, so in the red channel it is nearly as light as paper. Black, grey and
+blue ink stay dark, which is why the red channel is used rather than the brightest channel: the
+latter would also erase blue pen.
+
+The red channel alone still leaves a light grey ghost of a dense seal, and whitening the red
+pixels removes it. On a 30-dossier probe of `stamp_heavy` crops (Vision), the semantic error rate
+was 74.9% as rendered, 30.3% in the red channel and 13.8% after whitening.
+
+The filter needs no stamp detection and no knowledge of the seal's colour. It is the identity on a
+greyscale image, so the main batch is unchanged and its gates apply as before. The stress batch
+was filtered and read again by both engines ([RESULTS_dropout.md](RESULTS_dropout.md)).
+
+Crops without a stamp contain no red, so the filter changes only their file format (greyscale
+instead of RGB). Tesseract's results on them are identical; Vision's move by a unit or two.
+
+| Semantic error rate, all crops | clean | stamp_light | stamp_heavy | combined |
+|---|---:|---:|---:|---:|
+| Vision, as rendered | 10.6% | 44.1% | 74.7% | 76.4% |
+| Vision, dropout | 10.6% | 11.8% | **12.6%** | 30.6% |
+| Tesseract, as rendered | 34.3% | 71.9% | 93.7% | 95.2% |
+| Tesseract, dropout | 34.3% | 34.7% | **36.0%** | 64.0% |
+
+After dropout, a stamp costs Vision two points of error instead of sixty-four. What remains under
+`combined` is the skew and low resolution that come with it. H1 still holds: Vision's Risk@90%
+under `stamp_heavy` is 11.9%, and Tesseract's is 29.0%.
+
+**Transfer** of the main-batch gates, as before (coverage pooled over strata, accepted errors in
+brackets):
+
+| System | stamp_light | stamp_heavy | combined |
+|---|---:|---:|---:|
+| Vision verifier, as rendered | 33.3% (0) | 12.8% (2) | 10.4% (4) ⚠ |
+| Vision verifier, dropout | 90.5% (0) | **88.3% (0)** | 62.7% (2) |
+| Vision verifier + lexicon, as rendered | 27.8% (0) | 9.9% (2) | 8.0% (4) ⚠ |
+| Vision verifier + lexicon, dropout | 79.0% (2) | 77.1% (0) | 52.9% (3) |
+| Vision verifier + Tesseract agrees, dropout | 59.4% (0) | 56.9% (0) | 29.9% (0) |
+| Tesseract confidence, dropout | 90.5% (3) | 90.0% (9) ⚠ | 24.5% (13) ⚠ |
+
+- **Coverage returns to the unstamped level.** Under a heavy stamp, the Vision verifier accepts
+  88.3% of units (90.2% on clean crops) with no error. Under `combined` it accepts 62.7%,
+  against 10.4% before. The verifiers' refusals were mostly caused by the stamp.
+- **What still leaks is what leaked without stamps.** Five errors are accepted on stamped crops.
+  Two are tax codes again under `combined`: one with an unchecked branch suffix ("-817" →
+  "-317") and one with two leading digits wrong that still passes the check digit. Three are
+  street names misread the same way on both copies ("Trần Hưng Đạo" → "Trân", "Võ Văn Tần" →
+  "Tân", "Hai Bà Trưng" → "Trung"). The lexicon judges only words before a number, because
+  street names are open-class. A gazetteer of common street names, which are mostly historical
+  figures, would catch all three.
+- **Confidence thresholds still do not transfer.** Tesseract's confidence threshold accepts
+  9 errors under `stamp_heavy` even after dropout (UB 2.9%).
+
+**Within the stress batch**, after dropout, one gate over field types (§4 of the results)
+accepts no held-out error in any condition. Vision verifier + lexicon covers 84.6% of units
+under `stamp_heavy` and 57.8% under `combined`. As rendered, the figures were 13.2% and 11.1%, with
+2 and 3 errors.
+
+The stamp-aware gate (§5) uses field type × stamp level as strata. A unit is *stamped* if more
+than 0.2% of the pixels of one of its crops are red ink. On this synthetic batch the level
+separates the conditions perfectly, because unstamped crops have exactly no red pixels. The gate
+behaves differently on the two batches:
+
+- **As rendered**, no stamped stratum certifies. Every stamped dossier goes to review. The
+  guarantee then holds within each condition, at zero coverage where the stamp is.
+- **After dropout**, the stamped strata certify every field type except `mst` and `address`, with
+  zero held-out errors: 82.0% coverage under `stamp_heavy`, 53.2% under `combined`. The gate
+  withholds stamped tax codes, exactly the cell where the errors were.
+
+Splitting the strata has a price in calibration samples (finding 6): plain `name` loses its
+certificate, which it had in the one-level gate.
 
 ## Setup
 
@@ -291,13 +366,16 @@ uv run python audits/ocr_pilot/analyze.py --md audits/ocr_pilot/RESULTS.md --svg
 uv run python audits/ocr_pilot/analyze.py --work audits/ocr_pilot/work_fresh --skip-below 0 --md audits/ocr_pilot/RESULTS_confirm.md
 # stress suite: render.py --suite stress --n 2100 --seed 20261126 --out audits/ocr_pilot/work_stress, the same two
 # OCR commands on its paths.txt, then (needs the main batch in work/ for §3):
-uv run python audits/ocr_pilot/stress.py --md audits/ocr_pilot/RESULTS_stress.md
+uv run python audits/ocr_pilot/stress.py --red-from audits/ocr_pilot/work_stress_dropout/crops.jsonl --md audits/ocr_pilot/RESULTS_stress.md
+# red-ink dropout: filter the stress batch, the same two OCR commands on work_stress_dropout/paths.txt, then:
+uv run python audits/ocr_pilot/dropout.py
+uv run python audits/ocr_pilot/stress.py --work audits/ocr_pilot/work_stress_dropout --md audits/ocr_pilot/RESULTS_dropout.md
 ```
 
 `paths_vlm.txt` is the crops of dossiers 0–249. Tesseract needs `data/tessdata/vie.traineddata`
 (tessdata_best); the VLM needs `mlx-community/Qwen3.5-4B-MLX-4bit` in the Hugging Face cache.
-Generated images and OCR outputs live in `audits/ocr_pilot/work/`, `work_fresh/` and `work_stress/`
-(gitignored).
+Generated images and OCR outputs live in `audits/ocr_pilot/work/`, `work_fresh/`, `work_stress/`
+and `work_stress_dropout/` (gitignored).
 
 ## Limits
 
@@ -313,7 +391,11 @@ Generated images and OCR outputs live in `audits/ocr_pilot/work/`, `work_fresh/`
 - **The VLM subset is small.** 230 usable dossiers give 135 calibration units per stratum, fewer
   than the 230 that a zero-error certificate at α = 1% needs, so Qwen systems cannot certify
   anything here whatever their accuracy. Their rows are reported for accuracy and empirical risk.
-- **The perturbations are models.** The seal is a generic drawn ring, not a scanned one. Real red
-  ink can be removed by colour filtering before OCR, which this pilot does not try. A real stamp
-  also lies on one document of the pair, and may cover several fields of it at once. Here each
-  crop is stamped independently, which favours comparison.
+- **The perturbations are models.** The seal is a generic drawn ring of one flat red, not a
+  scanned one. A real stamp also lies on one document of the pair, and may cover several fields
+  of it at once. Here each crop is stamped independently, which favours comparison.
+- **Dropout and stamp detection are easy here.** The synthetic ink is pure red over pure grey, so
+  dropout removes it cleanly, and an unstamped crop has exactly no red pixel. Real seals fade,
+  shift towards purple, bleed through paper and overlap coloured printing. Real phone photos also
+  tint the paper. Both the dropout gain and the perfect separation of stamp levels are upper
+  bounds until measured on real scans.
