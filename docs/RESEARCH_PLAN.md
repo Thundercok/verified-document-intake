@@ -25,6 +25,24 @@ Standard on-device OCR engines (Apple Vision, Tesseract `vie+eng`) expose token-
 
 ---
 
+## 2a. Scope after the real-handwriting audit (2026-11-25)
+
+`audits/real_handwriting` ran the pilot's engines and verifiers on 1,838 real handwritten Vietnamese
+addresses (Cinnamon AI set). The engines that worked on fonts fail on pen strokes:
+
+- Apple Vision gets 83.7% of the parsed address values wrong (39.9% on handwriting fonts).
+- Tesseract `vie` gets none right.
+- Qwen3.5-4B, on a 200-line sample, matches an exact card on 23.5% of lines, against a bar of 50%
+  set before the run.
+
+Raw confidence stays at 1.0 throughout, so H1 holds on real data.
+
+Decision, by the rule set before the Qwen run: the scope narrows to **printed and typed documents
+plus the CCCD QR code**. Handwritten fields are reported as a measured limit, not a target. RQ3
+(VLM escalation) stays open only for printed crops that the gate abstains on. The next unknown in
+the narrowed scope is real scans with real seals (the stamp results in `audits/ocr_pilot` are upper
+bounds).
+
 ## 3. Evaluation Protocol
 
 1. **Benchmark Construction (Privacy-Safe):**
