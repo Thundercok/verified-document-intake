@@ -7,6 +7,7 @@ a selective gate auto-accept a field. Stdlib only.
 from .address import Address, compare_addresses, parse_address, resolve_province
 from .dates import PartialDate, compare_dates, parse_date
 from .ids import Cccd, check_cccd_consistency, check_cccd_format, compare_identifiers, parse_cccd
+from .lexicon import check_address_typical, check_name_typical
 from .mst import check_mst, mst_check_digit, parse_mst
 from .number_words import check_amount, number_to_words, parse_amount_digits, parse_number_words
 from .result import Check, Verdict
@@ -18,10 +19,12 @@ __all__ = [
     "Check",
     "PartialDate",
     "Verdict",
+    "check_address_typical",
     "check_amount",
     "check_cccd_consistency",
     "check_cccd_format",
     "check_mst",
+    "check_name_typical",
     "clean",
     "compare_addresses",
     "compare_dates",
