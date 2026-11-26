@@ -54,18 +54,41 @@ ground truth.
    92.7%, both 85.5% (ITERATE again). Dropout now costs 1.6 points on page 1, which falls between
    the GO and KILL bars.
 
+7. **v3 meets its bar on a third batch, and its only errors are in the ground truth
+   ([RESULTS_v3.md](RESULTS_v3.md)).** v3 adds a rule ("TT, NĐ, VBHN, TTLT and QH numbers carry a
+   /YYYY/ segment", which catches a slash read as "1") and a second read: Qwen3.5-4B reads the same
+   header and the document is accepted only if both engines give the same number and date. It was
+   frozen and pre-registered (PREREG.md) before 340 unseen documents were listed (positions
+   501–1000, 27/08 to 30/09/2026). It accepts 264 (77.6%, bar 70%) and 3 are wrong against the
+   listing: upper bound 2.9%, under the 3% bar, so **GO**, by a margin of 0.1 points. Three errors
+   in 264 is not a 1% certificate (p = 0.73).
+   Looked at **after** scoring, none of the three is a misread. In one, the first PDF is a
+   correction letter, not the document listed, and both engines read the letter correctly. In
+   one, the page says "ngày 18 tháng 9" and the listing 21/09. In one, the listing's number
+   holds a Cyrillic "Т". Scored against the page, v3 would have 0 wrong in 264, which would pass
+   the certificate test (p = 0.07). That count is post hoc and is **not** a certificate. What it
+   does show is that the publication listing is not an exact side A either: 3 of the 264
+   accepted entries (1.1%) disagree with the page they point to.
+   The rules alone accept 296 with 5 wrong (upper bound 3.5%); Qwen's disagreement costs 30
+   documents that Vision read correctly. Vision's exact match is 92.1% for the number and 92.6%
+   for the date (ITERATE for the third time). v2, report only, has 7 wrong of 300 (upper bound
+   4.3%). Dropout costs 1.4 points on page 1, between the bars again.
+
 **What this means for the plan.** Printed administrative documents are within reach of Apple
 Vision, but their key fields carry handwriting or an overlay, and Vision's misreads there are
 plausible numbers. The design that holds up is the one the verifier already assumes: compare
 against an exact side A (here the issuing register or the publication listing, for a CCCD the QR
 code) rather than trust a single read. Red dropout can stay in the pipeline; it costs nothing
-measurable.
+measurable. On the third batch, two engines that agree reached an upper bound of 2.9% on their
+own, and their remaining disagreements with the listing were the listing's fault. The open
+problem moves from reading to checking: a side A that is itself wrong about 1% of the time cannot
+certify 1%.
 
 ## Not tested here
 
 - **The signer's name under the seal.** No ground truth.
 - **Phone photos.** These are flatbed scans and rendered PDFs.
-- **Commune-level documents.** All 193 come from central government; commune paperwork may be
+- **Commune-level documents.** All 726 come from central government; commune paperwork may be
   older, fainter and more often handwritten.
 - **The body text.** Only the header and the signer block were read.
 
@@ -78,4 +101,9 @@ swiftc -O audits/real_scans/render_pages.swift -o audits/real_scans/work/render_
 uv run python audits/real_scans/run_scans.py --md audits/real_scans/RESULTS.md
 # confirmation batch: PDFs in data/private/vbcp2/pdf/, listing in data/private/vbcp2/docs.json
 VBCP_DIR=data/private/vbcp2 uv run python audits/real_scans/run_scans.py --confirm --md audits/real_scans/RESULTS_confirm.md
+# third batch (v3): render, then Qwen on the 1240 px header crops, then score
+#   paths file = one data/private/vbcp3/pages/NNN/head_small.png per line
+HF_HUB_OFFLINE=1 uv run --group vlm python audits/ocr_pilot/vlm_ocr.py paths.txt data/private/vbcp3/qwen.jsonl \
+    --prompt-file audits/real_scans/header_prompt.txt --max-tokens 96
+VBCP_DIR=data/private/vbcp3 uv run python audits/real_scans/run_scans.py --confirm3 --md audits/real_scans/RESULTS_v3.md
 ```

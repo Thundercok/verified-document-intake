@@ -54,6 +54,13 @@ Both follow-ups ran the same day, with thresholds written first:
   the QR code holds up as the exact side A, as an upper bound until real cards are tested with
   consent.
 
+The number and date then went through two more pre-registered batches. Parser v2 failed on
+unseen documents (upper bound 5.4%, KILL). v3, which also requires Qwen3.5-4B to agree with
+Vision, passed on 340 unseen documents (264 accepted, upper bound 2.9% against a 3% bar), and
+its three disagreements with the listing were all faults in the listing. Two-engine agreement
+is therefore the working gate for printed headers; the open question is an exact side A, since
+the publication listing is wrong about 1% of the time.
+
 ## 3. Evaluation Protocol
 
 1. **Benchmark Construction (Privacy-Safe):**
