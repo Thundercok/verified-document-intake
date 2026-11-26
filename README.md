@@ -4,6 +4,28 @@ Research and engineering repository for **deterministic PDF/OCR intake, field-le
 
 ---
 
+## 0. Status: what does not work yet
+
+Updated after every audit run. Bad numbers go here first. Last update: 2026-11-26.
+
+| What | Measured | Bar (set before the run) | Verdict | Source |
+|---|---|---|---|---|
+| Real handwritten addresses, Apple Vision | 83.7% of parsed values wrong (1,838 lines) | — | Out of scope | `audits/real_handwriting` |
+| Real handwritten addresses, Tesseract `vie` | 100% wrong | — | Out of scope | `audits/real_handwriting` |
+| Real handwritten addresses, Qwen3.5-4B | 23.5% match an exact card (200 lines), 5.1 s per line | ≥ 50% | Missed | `audits/real_handwriting` |
+| Raw engine confidence (H1) | Vision gives 1.0 to 99.3% of real lines, right or wrong | — | H1 holds | `audits/real_handwriting` |
+| Number + date on real government documents, Vision | Number 94.8%, date 93.8%, both 89.1% (193 docs); scans only: both 84.7% | ≥ 95% each | ITERATE | `audits/real_scans` |
+| Same, Tesseract `vie` | Both right on 38.3% | — | Not usable alone | `audits/real_scans` |
+| Wrong values that pass the format checks | 7 of 179 accepted (3.9%, upper bound 7.2%); post hoc parser 1 of 168 | — | Format checks are not enough | `audits/real_scans` |
+| PDF text layer for number and date | Blank in 62% of signed PDFs (filled in after signing) | — | OCR still needed | `audits/real_scans` |
+| Certified risk ≤ 1% | Not reached anywhere on real data (needs ≥ 230 accepted units per stratum) | α = 1%, δ = 0.1 | Not certified | all |
+| CCCD QR silent errors | 0 of 2,526 decodes, but **synthetic codes only**; decode rate 69.8% under blur | 0 errors | GO (upper bound) | `audits/cccd_qr` |
+
+Untested: real CCCD cards, phone photos of real documents, commune-level paperwork, the signer's
+name under a seal.
+
+---
+
 ## 1. Problem Formulation
 
 Given a document page $D$ (digital PDF, scanned raster, or photograph) containing a set of target fields $F = \{f_1, \dots, f_k\}$ (e.g., citizen ID numbers, dates, names, structured clauses), an intake system produces for each field $f_i$:
@@ -30,6 +52,7 @@ In administrative digitization, **silent errors on identity fields are unaccepta
 
 ```text
 verified-document-intake/
+├── audits/                 # Pre-registered experiments: code + aggregate results (data stays in data/private/)
 ├── docs/
 │   ├── RESEARCH_PLAN.md    # Hypotheses, degradation regimes, Risk–Coverage protocol
 │   └── GUIDE.md            # Integration guide (RAT & digitization clients), privacy rules

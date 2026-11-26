@@ -43,6 +43,17 @@ plus the CCCD QR code**. Handwritten fields are reported as a measured limit, no
 the narrowed scope is real scans with real seals (the stamp results in `audits/ocr_pilot` are upper
 bounds).
 
+Both follow-ups ran the same day, with thresholds written first:
+
+- `audits/real_scans` (193 government documents). The number and issue date are filled in
+  after signing, by hand on scans and as an overlay on signed PDFs, so even "printed" documents
+  need handwritten digits read. Vision gets both right on 89.1% (bar 95%: ITERATE). Red dropout
+  removes real seals and costs nothing measurable. The one engine error that passes every format
+  check ("2223" read as "2023") is exactly what only an exact side A can catch.
+- `audits/cccd_qr` (synthetic payloads only). 2,526 decodes, no silent error, Vietnamese intact:
+  the QR code holds up as the exact side A, as an upper bound until real cards are tested with
+  consent.
+
 ## 3. Evaluation Protocol
 
 1. **Benchmark Construction (Privacy-Safe):**
