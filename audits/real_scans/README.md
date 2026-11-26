@@ -122,8 +122,8 @@ ground truth.
     unreadable and no mismatch for the reader to withdraw. So the certificate stands. This check
     could only have falsified it: 0 of 100 still allows hidden errors in up to 3.0% of agreeing
     documents (one-sided 95%). The reader is the same agent as before.
-    Seen after scoring: two of the 100 listing entries spell "NĐ-CP" with a Cyrillic "Р". That
-    makes 5 Cyrillic letters in the listings so far. A plain string match against the listing
+    Seen after scoring: two of the 100 listing entries spell "NĐ-CP" with a Cyrillic "Р". Across all
+    four listings, 15 of 1,792 entries (0.8%) contain a Cyrillic letter. A plain string match against the listing
     would count those as errors, and the scoring handles them by mapping the letters to Latin. In
     all 100, v4's output matches the page exactly, including "Đ".
 
