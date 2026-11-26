@@ -14,11 +14,13 @@ Updated after every audit run. Bad numbers go here first. Last update: 2026-11-2
 | Real handwritten addresses, Tesseract `vie` | 100% wrong | — | Out of scope | `audits/real_handwriting` |
 | Real handwritten addresses, Qwen3.5-4B | 23.5% match an exact card (200 lines), 5.1 s per line | ≥ 50% | Missed | `audits/real_handwriting` |
 | Raw engine confidence (H1) | Vision gives 1.0 to 99.3% of real lines, right or wrong | — | H1 holds | `audits/real_handwriting` |
-| Number + date on real government documents, Vision | Number 94.8%, date 93.8%, both 89.1% (193 docs); scans only: both 84.7% | ≥ 95% each | ITERATE | `audits/real_scans` |
+| Number + date on real government documents, Vision | Batch 1: number 94.8%, date 93.8%, both 89.1% (193 docs). Fresh batch: number 89.1%, date 92.7%, both 85.5%; scans only 80.0% | ≥ 95% each | ITERATE (twice) | `audits/real_scans` |
 | Same, Tesseract `vie` | Both right on 38.3% | — | Not usable alone | `audits/real_scans` |
-| Wrong values that pass the format checks | 7 of 179 accepted (3.9%, upper bound 7.2%); post hoc parser 1 of 168 | — | Format checks are not enough | `audits/real_scans` |
+| Wrong values that pass the format checks | Batch 1: 7 of 179 (upper bound 7.2%). Fresh batch: 13 of 178 (7.3%, upper bound 11.4%) | — | Format checks are not enough | `audits/real_scans` |
+| Stricter parser v2 on a fresh batch | 4 wrong of 168 accepted, upper bound 5.4% (batch 1 post hoc: 1 of 168 did not replicate) | upper bound ≤ 3% GO, > 5% KILL | **KILL** | `audits/real_scans` |
+| Red dropout, cost on page 1 | Batch 1: 0 points. Fresh batch: −1.6 points | ≤ 1 GO, > 2 KILL | Between bars | `audits/real_scans` |
 | PDF text layer for number and date | Blank in 62% of signed PDFs (filled in after signing) | — | OCR still needed | `audits/real_scans` |
-| Certified risk ≤ 1% | Not reached anywhere on real data (needs ≥ 230 accepted units per stratum) | α = 1%, δ = 0.1 | Not certified | all |
+| Certified risk ≤ 1% | Not reached anywhere on real data (needs ≥ 230 accepted units per stratum; fresh batch: 168, p = 0.97) | α = 1%, δ = 0.1 | Not certified | all |
 | CCCD QR silent errors | 0 of 2,526 decodes, but **synthetic codes only**; decode rate 69.8% under blur | 0 errors | GO (upper bound) | `audits/cccd_qr` |
 
 Untested: real CCCD cards, phone photos of real documents, commune-level paperwork, the signer's

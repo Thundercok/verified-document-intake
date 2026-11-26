@@ -33,10 +33,10 @@ from PIL import Image
 from scipy import ndimage
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ocr_pilot"))
-from analyze import cp_upper, pct  # noqa: E402
+from analyze import binom_cdf, cp_upper, pct  # noqa: E402
 from dropout import dropout, red_mask  # noqa: E402
 
-PRIV = Path("data/private/vbcp")
+PRIV = Path(os.environ.get("VBCP_DIR", "data/private/vbcp"))  # VBCP_DIR=data/private/vbcp2: confirmation batch
 RENDER = Path("audits/real_scans/work/render_pages")
 VISION = Path("audits/ocr_pilot/work/vision_ocr")
 HEADER_SHARE = 0.30
@@ -174,7 +174,8 @@ def has_title(text: str) -> bool:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--md")
-    ap.add_argument("--skip-ocr", action="store_true", help="reuse data/private/vbcp/ocr.json")
+    ap.add_argument("--skip-ocr", action="store_true", help="reuse <VBCP_DIR>/ocr.json")
+    ap.add_argument("--confirm", action="store_true", help="add the confirmation-batch verdicts of PREREG.md")
     args = ap.parse_args()
     listing = json.loads((PRIV / "docs.json").read_text(encoding="utf-8"))
     ids = sorted(int(p.stem) for p in (PRIV / "pdf").glob("*.pdf"))
@@ -244,9 +245,43 @@ def main() -> None:
         ),
         encoding="utf-8",
     )
-    print("\n".join(report(rows)))
+    text = report(rows) + (confirm(rows) if args.confirm else [])
+    print("\n".join(text))
     if args.md:
-        Path(args.md).write_text("\n".join(report(rows)) + "\n", encoding="utf-8")
+        Path(args.md).write_text("\n".join(text) + "\n", encoding="utf-8")
+
+
+ALPHA, DELTA = 0.01, 0.1  # as audits/ocr_pilot/analyze.py
+
+
+def confirm(rows: list[dict]) -> list[str]:
+    """Verdicts of PREREG.md, "Confirmation batch", on this batch alone."""
+    n = len(rows)
+    acc = [x["V", "raw2"] for x in rows if x["V", "raw2"]["pass"]]
+    wrong = sum(not (a["num_ok"] and a["date_ok"]) for a in acc)
+    ub = cp_upper(wrong, len(acc)) if acc else 1.0
+    v1 = "GO" if ub <= 0.03 else ("KILL v2" if ub > 0.05 else "ITERATE")
+    num = sum(x["V", "raw"]["num_ok"] for x in rows) / n
+    dat = sum(x["V", "raw"]["date_ok"] for x in rows) / n
+    v2 = "GO" if num >= 0.95 and dat >= 0.95 else ("ITERATE" if min(num, dat) >= 0.80 else "RETHINK")
+    p = binom_cdf(wrong, len(acc), ALPHA) if acc else 1.0
+    cert = len(acc) >= 230 and p <= DELTA
+    return [
+        "",
+        "## 6. Confirmation batch: pre-registered verdicts",
+        "",
+        'PREREG.md, "Confirmation batch": parser v2 frozen at commit a0bdc77, documents not seen before.',
+        "",
+        f"1. Primary (Vision, as scanned, v2): {len(acc)} of {n} accepted, {wrong} wrong, 95% upper bound "
+        f"{pct(ub)} → **{v1}**.",
+        f"2. Replication of §1 (v1 parser): number {pct(num)}, date {pct(dat)} → **{v2}**.",
+        f"3. Certificate at α = {pct(ALPHA)}, δ = {DELTA}: {len(acc)} accepted, binomial p = {p:.3f} → "
+        + (
+            "**certified**."
+            if cert
+            else "**not certified**" + (" (fewer than 230 accepted)." if len(acc) < 230 else ".")
+        ),
+    ]
 
 
 def report(rows: list[dict]) -> list[str]:

@@ -41,6 +41,18 @@ ground truth.
    source would: the issuing office's register, or a second read.
 5. **193 documents cannot certify 1%.** A zero-error certificate at α = 1% needs about 230
    accepted units. These numbers are estimates, not guarantees.
+6. **The stricter parser did not replicate (confirmation batch, [RESULTS_confirm.md](RESULTS_confirm.md)).**
+   v2 was frozen and run on 193 documents not seen before (listing positions 251–500, 30/09 to
+   24/10/2026), with bars written first (PREREG.md). It accepts 168 and 4 are wrong: upper bound
+   5.4%, above the 5% kill bar, so **KILL v2**. The 1-in-168 of the first batch was optimistic.
+   v1 does worse on the same documents (13 wrong of 178, upper bound 11.4%), so the
+   pre-registered fallback "back to v1" makes no sense. That was a flaw in how the bar was worded,
+   not a reason to move it. The conclusion is that no parser plus format checks meets the bar.
+   Of the 4 errors, two are Vision reading the slash as "1" ("7/2026" → "712026"), which hides
+   the year from the year check. One is a handwritten "1918" read as "4948". One is an "&" the
+   parser does not accept. Vision's exact match also drops on this batch: number 89.1%, date
+   92.7%, both 85.5% (ITERATE again). Dropout now costs 1.6 points on page 1, which falls between
+   the GO and KILL bars.
 
 **What this means for the plan.** Printed administrative documents are within reach of Apple
 Vision, but their key fields carry handwriting or an overlay, and Vision's misreads there are
@@ -64,4 +76,6 @@ swiftc -O audits/real_scans/render_pages.swift -o audits/real_scans/work/render_
 # PDFs in data/private/vbcp/pdf/<listing index>.pdf, listing in data/private/vbcp/docs.json
 # Tesseract needs data/tessdata/vie.traineddata (tessdata_best), as for the pilot
 uv run python audits/real_scans/run_scans.py --md audits/real_scans/RESULTS.md
+# confirmation batch: PDFs in data/private/vbcp2/pdf/, listing in data/private/vbcp2/docs.json
+VBCP_DIR=data/private/vbcp2 uv run python audits/real_scans/run_scans.py --confirm --md audits/real_scans/RESULTS_confirm.md
 ```
