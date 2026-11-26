@@ -74,6 +74,24 @@ ground truth.
    for the date (ITERATE for the third time). v2, report only, has 7 wrong of 300 (upper bound
    4.3%). Dropout costs 1.4 points on page 1, between the bars again.
 
+8. **v4, written on all 726 documents (in-sample, not a test).** Of the 169 documents v3
+   rejected, 66 were Qwen dropping the stroke of "Đ" ("NĐ" → "ND"), swapping day and month, or
+   misreading a digit; 64 were Vision losing the slash ("47 |2026", "472 NQ", "22321QĐ").
+   v4 reads every number Vision's text could stand for and accepts only if exactly one passes
+   the checks and equals Qwen's read, with "Đ"/"D" and a day-month swap tolerated in Qwen's.
+   Two engine errors it then let in were fixed before freezing: a handwritten "142" read as "1H2"
+   by both (now rejected, a symbol may not be followed by "/"), and "ngày21tháng" read as day 2 by
+   both. For that one the page prints a second date, the e-signature time ("Thời gian ký:
+   22.09.2026"); v4 abstains when the issue date is not 0–14 days before it (the gap is 0–14
+   days for 90% of the 469 dev pages that print it). In-sample, v4 accepts 574 of 726 (79.1%; v3
+   560) and is wrong on 0 against the page. Its 3 disagreements with the listing are listing
+   faults, checked on the page image (not blind: the engines' reads had been seen). Re-reading
+   rejections with Qwen at full resolution recovers 23 more but lets in "2223" read as "2023" by
+   both engines, so it is report-only. Batch 3 alone would pass the certificate test (247
+   accepted, 0 wrong, p = 0.08), but v4 was written on batch 3: **this is not a certificate.**
+   The cost of the emblem rule falls on consolidated texts, which are published weeks after
+   issue: on batch 3, v4 accepts 72.6%, close to the 70% bar.
+
 **What this means for the plan.** Printed administrative documents are within reach of Apple
 Vision, but their key fields carry handwriting or an overlay, and Vision's misreads there are
 plausible numbers. The design that holds up is the one the verifier already assumes: compare

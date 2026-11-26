@@ -149,6 +149,84 @@ def read_qwen(text: str) -> tuple[str | None, tuple[int, int, int] | None]:
     return num, (tuple(int(g) for g in m.groups()) if m else None)  # type: ignore[return-value]
 
 
+# --- v4 (written 2026-11-26 after the third batch; developed on batches 1-3, 726 documents) ---
+# Vision's read is turned into every number it could stand for (a slash read as "|", "(", ".",
+# "1" or a space; digits split by a space), and the document is accepted only if exactly one of
+# them passes checks_pass3 and equals Qwen's read. The value kept is Vision's.
+SO_RE = re.compile(r"(?:S[ốôoóồổ6]|s[ốô])\s*[:.]?\s*")
+TAIL4 = r"[A-ZĐÐ][A-ZĐÐa-z0-9&.\-]*[A-Za-z0-9ĐÐ]"
+NUM4_RE = re.compile(
+    rf"(\d+)\s*((?:[/|(.]{{1,2}}|1)?)\s*(?:(\d{{4}})\s*(?:[/|(.]{{1,2}}|1)?\s*)?({TAIL4})(?![/\w&.\-])"
+)
+HOMOGLYPHS = str.maketrans("АВЕКМНОРСТХ", "ABEKMHOPCTX")  # Cyrillic capitals found in the listing
+FOLD = str.maketrans("ĐÐđ", "DDd")  # Qwen often drops the stroke of Đ
+
+
+def read_numbers4(text: str) -> list[str]:
+    t = DOTS.sub("", unicodedata.normalize("NFC", text))
+    for at in SO_RE.finditer(t):
+        seg = re.sub(r"\s*([/\-])\s*", r"\1", t[at.end() : at.end() + 50])
+        out = []
+        for s in dict.fromkeys((seg, re.sub(r"(?<=\d)\s+(?=\d)", "", seg))):
+            m = NUM4_RE.match(s)
+            if not m:
+                continue
+            num, sep, year, tail = m.groups()
+            reads = [(num, year)]
+            if not sep and len(num) > 1 and num.endswith("1"):  # "22321QĐ" -> "2232/QĐ"
+                reads.append((num[:-1], year))
+            split = re.fullmatch(r"(\d+)1(\d{4})", num)
+            if split and not year:  # "712026/VBHN" -> "7/2026/VBHN"
+                reads.append(split.groups())
+            out += [canon(f"{n}/{y + '/' if y else ''}{tail}") for n, y in reads]
+        if out:
+            return list(dict.fromkeys(out))
+    return []
+
+
+def truth4(num: str) -> str:
+    """The listing's number for scoring v4: canon() plus Cyrillic look-alikes as Latin."""
+    return canon(num).translate(HOMOGLYPHS)
+
+
+def agree4(vn: str, vd: tuple[int, int, int], qtext: str) -> bool:
+    lines = [x.strip() for x in qtext.splitlines() if x.strip()]
+    qn = (read_numbers4("Số: " + lines[0]) or [None])[0] if lines else None
+    m = QDATE_RE.search(lines[1]) if len(lines) > 1 else None
+    qd = tuple(int(g) for g in m.groups()) if m else None
+    same_num = qn is not None and vn.translate(FOLD) == qn.translate(FOLD)
+    return same_num and qd in (vd, (vd[1], vd[0], vd[2]))  # day and month may be swapped
+
+
+EMBLEM_RE = re.compile(r"(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{4})\s+\d{1,2}:\d{2}")
+EMBLEM_DAYS = 14  # issue date to e-signature time; 0-14 days for 90% of the 469 dev pages that print it
+
+
+def emblem_ok(text: str, d: tuple[int, int, int]) -> bool:
+    """A second printed date on the same page: the e-signature emblem ("Thời gian ký: 22.09.2026
+    13:57"). If it is there, the issue date must fall 0-14 days before it. Catches a day read short
+    ("ngày21tháng" read as 2) that both engines agree on."""
+    try:
+        sig = [date(int(y), int(m), int(dd)) for dd, m, y in EMBLEM_RE.findall(text)]
+        gap = (min(sig) - date(d[2], d[1], d[0])).days if sig else None
+    except ValueError:
+        return True  # an unreadable emblem says nothing
+    return gap is None or 0 <= gap <= EMBLEM_DAYS
+
+
+def read_v4(text: str, qtexts: list[str]) -> tuple[str | None, tuple[int, int, int] | None]:
+    """Accepted (number, date), or (None, date). qtexts: Qwen reads, tried in order."""
+    d = read_date2(text)
+    if d is None or not emblem_ok(text, d):
+        return None, d
+    cands = [n for n in read_numbers4(text) if checks_pass3(n, d)]
+    for q in qtexts:
+        hits = [n for n in cands if agree4(n, d, q)]
+        if len(hits) == 1:
+            return hits[0], d
+    return None, d
+
+
 def seal_box(rgb: np.ndarray) -> tuple[int, int, int, int] | None:
     """Bounding box of the largest blob of red ink, grown to take in the signer's title."""
     red = red_mask(rgb[::4, ::4])
@@ -218,6 +296,10 @@ def main() -> None:
     ap.add_argument("--skip-ocr", action="store_true", help="reuse <VBCP_DIR>/ocr.json")
     ap.add_argument("--confirm", action="store_true", help="add the confirmation-batch verdicts of PREREG.md")
     ap.add_argument("--confirm3", action="store_true", help="add the third-batch (v3) verdicts of PREREG.md")
+    ap.add_argument("--confirm4", action="store_true", help="add the fourth-batch (v4) verdicts of PREREG.md")
+    ap.add_argument(
+        "--to-adjudicate", action="store_true", help="list v4-accepted ids that differ from the listing (no values)"
+    )
     args = ap.parse_args()
     listing = json.loads((PRIV / "docs.json").read_text(encoding="utf-8"))
     ids = sorted(int(p.stem) for p in (PRIV / "pdf").glob("*.pdf"))
@@ -249,6 +331,15 @@ def main() -> None:
     if (PRIV / "qwen.jsonl").exists():  # vlm_ocr.py --prompt-file audits/real_scans/header_prompt.txt
         with open(PRIV / "qwen.jsonl", encoding="utf-8") as fh:
             qwen = {j["path"]: j["text"] for j in map(json.loads, fh)}
+    qfull = {}
+    if (PRIV / "qwen_full.jsonl").exists():  # same prompt on the full-resolution head.png, v4 rejections only
+        with open(PRIV / "qwen_full.jsonl", encoding="utf-8") as fh:
+            qfull = {j["path"]: j["text"] for j in map(json.loads, fh)}
+    adj = (
+        json.loads((PRIV / "adjudication.json").read_text(encoding="utf-8"))
+        if (PRIV / "adjudication.json").exists()
+        else {}
+    )
     rows = []
     for r in recs:
         d = PRIV / "pages" / f"{r['id']:03d}"
@@ -288,6 +379,21 @@ def main() -> None:
             "qwen": q is not None,
             "agree": q is not None and qn == num and qd == dt,
         }
+        n1, d4 = read_v4(text, [q] if q is not None else [])
+        f = qfull.get(str(d / "head.png"))
+        n2 = read_v4(text, [f])[0] if n1 is None and f is not None else None
+        page = adj.get(str(r["id"]), {})
+        pn = truth4(page.get("number", truth["number"]))
+        pd = tuple(int(x) for x in page.get("date", truth["date"]).split("/"))
+        row["v4"] = {
+            "num": n1 or n2,
+            "date": d4,
+            "stage": 1 if n1 else (2 if n2 else 0),
+            "full": f is not None,
+            "ok_listing": (n1 or n2, d4) == (truth4(truth["number"]), td),
+            "ok_page": (n1 or n2, d4) == (pn, pd),
+            "adjudicated": bool(page),
+        }
         row["layer"] = {"num": r.get("layer_num"), "date": r.get("layer_date")}
         row["layer"]["num_ok"] = row["layer"]["num"] == tn
         row["layer"]["date_ok"] = tuple(row["layer"]["date"] or ()) == td
@@ -304,7 +410,11 @@ def main() -> None:
         ),
         encoding="utf-8",
     )
+    if args.to_adjudicate:  # ids only: the reader looks at the page without seeing any engine's read
+        print(" ".join(str(x["id"]) for x in rows if x["v4"]["stage"] and not x["v4"]["ok_listing"]))
+        return
     text = report(rows) + (confirm(rows) if args.confirm else []) + (confirm3(rows) if args.confirm3 else [])
+    text += confirm4(rows) if args.confirm4 else []
     print("\n".join(text))
     if args.md:
         Path(args.md).write_text("\n".join(text) + "\n", encoding="utf-8")
@@ -384,6 +494,43 @@ def confirm3(rows: list[dict]) -> list[str]:
         f"{pct(cp_upper(rw, len(rul)) if rul else 1.0)}). Qwen's disagreement rejects {lost} documents that "
         "Vision read correctly.",
     ]
+
+
+def confirm4(rows: list[dict]) -> list[str]:
+    """Verdicts of PREREG.md, "Fourth batch (v4)", on this batch alone."""
+    missing = [x["id"] for x in rows if not x["v3"]["qwen"]]
+    if missing:
+        raise SystemExit(f"no Qwen read for {len(missing)} documents (first: {missing[:5]}); run vlm_ocr.py first")
+    no_full = [x["id"] for x in rows if x["v4"]["stage"] != 1 and x["v4"]["date"] and not x["v4"]["full"]]
+    n = len(rows)
+    acc = [x["v4"] for x in rows if x["v4"]["stage"]]
+    acc1 = [a for a in acc if a["stage"] == 1]
+    out = ["", "## 8. Fourth batch: pre-registered verdicts for v4", ""]
+    out += [
+        'PREREG.md, "Fourth batch (v4)": v4 frozen at the commit that added that section, documents not seen',
+        "before. Truth is the page: the listing, except where a reader who saw only the page image",
+        "corrected an accepted document that disagrees with it (`adjudication.json`).",
+        "",
+    ]
+    if no_full:
+        out.append(f"Report-only row: {len(no_full)} rejections have no full-resolution Qwen read.")
+    for name, a in (("Primary, v4", acc1), ("Report only, v4 + full-resolution re-read of rejections", acc)):
+        w = sum(not x["ok_page"] for x in a)
+        ub = cp_upper(w, len(a)) if a else 1.0
+        p = binom_cdf(w, len(a), ALPHA) if a else 1.0
+        verdict = "GO" if ub <= 0.03 else ("KILL v4" if ub > 0.05 else "ITERATE")
+        cert = len(a) >= 230 and p <= DELTA
+        out.append(
+            f"- {name}: {len(a)} of {n} accepted ({pct(len(a) / n)}), {w} wrong against the page, 95% upper "
+            f"bound {pct(ub)} → **{verdict}**; certificate at α = {pct(ALPHA)}, δ = {DELTA}: p = {p:.3f} → "
+            f"**{'certified' if cert else 'not certified'}**."
+        )
+    wl = sum(not x["ok_listing"] for x in acc)
+    out.append(
+        f"- Against the listing as published: {wl} wrong of {len(acc)}; "
+        f"{sum(x['adjudicated'] for x in acc)} accepted documents were adjudicated."
+    )
+    return out
 
 
 def report(rows: list[dict]) -> list[str]:
