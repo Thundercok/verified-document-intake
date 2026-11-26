@@ -127,6 +127,32 @@ ground truth.
     would count those as errors, and the scoring handles them by mapping the letters to Latin. In
     all 100, v4's output matches the page exactly, including "Đ".
 
+11. **v5 on a fifth batch: risk passes, coverage misses (pre-registered, PREREG.md).** 500 documents
+    not seen before (04–06/2026). No person took part: every read was done blind by the agent that
+    built v5. v5 accepts 328 (**65.6%, below the 70% bar**), 0 wrong against the page, upper bound
+    0.9% → **GO** on risk. The certificate passes on this batch alone (p = 0.037, n = 328 ≥ 230).
+    The blind spot check read 100 random agreeing accepts from the page: 0 hidden errors, no field
+    unreadable. Three negative controls (a changed digit, a changed day, rows shifted by one)
+    were each flagged 100 of 100 by the comparison, so a match is not an artefact of the script.
+    Up to 3.0% of the 227 unsampled agreeing accepts could still hide an error.
+    **The Đ fix was not exercised.** v5 and v4 give the same output on all 500 documents: Vision
+    kept the stroke in all 187 accepted numbers that contain "Đ", so `merge_d` never fired. This
+    batch is evidence that v4/v5 holds, not evidence that the Đ rule works.
+    **Why coverage fell (seen after scoring, not a test).** 81 of the 500 are consolidated texts
+    (VBHN) whose page 1 has no "Số:" line and no place-date line. v5 abstains on all 81, which is
+    the right behaviour, but the bar counts them. In batch 4, 34 of 52 consolidated texts were
+    accepted, so this batch has a different consolidated template. Without them, coverage is
+    78.3% (328 / 419). This number was computed after the result and does not rescue the bar.
+    Scans: 73.9% accepted (batch 4: 72.4%). PDFs with a text layer: 45.1% (batch 4: 91.0%), which
+    is the same consolidated-text effect, since 70 of the 81 are PDFs.
+    **The listing.** The one adjudicated document is a listing fault: the listing writes "QD-UBND",
+    and the page and v5 write "QĐ-UBND". This is the mirror image of v4's batch-4 error.
+    Vision alone, all 500: number 77.0%, date 77.8% exact (scans 87.9% and 89.0%); the format
+    checks let 78 of 439 wrong reads through (upper bound 21.0%), mostly consolidated texts where a
+    date quoted in the title is taken as the header date. Dropout costs 0.4 points.
+    **Scope.** 494 of the 500 are central government documents. 6 are provincial decisions
+    (UBND), all 6 accepted, all correct. That is too few to say anything about provinces.
+
 **What this means for the plan.** Printed administrative documents are within reach of Apple
 Vision, but their key fields carry handwriting or an overlay, and Vision's misreads there are
 plausible numbers. The design that holds up is the one the verifier already assumes: compare
@@ -138,13 +164,17 @@ problem moves from reading to checking: a side A that is itself wrong about 1% o
 certify 1%. On the fourth batch, scored against the page, v4 passed the 1% certificate test,
 pre-registered, with one error, which came from writing "Đ" as "D" rather than from a misread digit.
 The test passes for documents from the central government, and only 72% of scans are accepted.
+On the fifth batch, v5 passed the certificate again (0 wrong in 328) but missed the coverage bar,
+because consolidated texts carry no number on page 1. Reading their number from elsewhere is the
+next coverage gain; the risk side has now held on two batches in a row.
 
 ## Not tested here
 
 - **The signer's name under the seal.** No ground truth.
 - **Phone photos.** These are flatbed scans and rendered PDFs.
-- **Commune-level documents.** All 1,226 come from central government; commune paperwork may be
-  older, fainter and more often handwritten.
+- **Commune-level documents.** Of 1,726 documents, all but 6 provincial ones come from central
+  government; commune paperwork may be older, fainter and more often handwritten.
+- **The number of a consolidated text (VBHN).** In batch 5 it is not on page 1 and v5 abstains.
 - **The body text.** Only the header and the signer block were read.
 
 ## Reproduce
@@ -167,4 +197,10 @@ VBCP_DIR=data/private/vbcp4 uv run python audits/real_scans/run_scans.py --to-ad
 #   date reads, passes the e-signature check and has a candidate passing the checks -> qwen_full.jsonl
 #   then rerun --skip-ocr --to-adjudicate; read each listed head.png blind into adjudication.json
 VBCP_DIR=data/private/vbcp4 uv run python audits/real_scans/run_scans.py --skip-ocr --confirm4 --md audits/real_scans/RESULTS_v4.md
+# fifth batch (v5): Qwen as above into data/private/vbcp5/qwen.jsonl, then OCR and the ids to adjudicate
+VBCP_DIR=data/private/vbcp5 uv run python audits/real_scans/run_scans.py --to-adjudicate5
+#   read each listed head.png blind into adjudication.json; then the spot-check ids:
+VBCP_DIR=data/private/vbcp5 uv run python audits/real_scans/run_scans.py --skip-ocr --spot5
+#   read the 30-65% header band of each blind into spot_check.json {"id": {number, date}}
+VBCP_DIR=data/private/vbcp5 uv run python audits/real_scans/run_scans.py --skip-ocr --confirm5 --md audits/real_scans/RESULTS_v5.md
 ```
