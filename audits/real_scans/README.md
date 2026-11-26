@@ -153,6 +153,30 @@ ground truth.
     **Scope.** 494 of the 500 are central government documents. 6 are provincial decisions
     (UBND), all 6 accepted, all correct. That is too few to say anything about provinces.
 
+12. **v6 on a sixth batch: risk passes, coverage passes by one point (pre-registered, PREREG.md).**
+    500 documents not seen before (02–03/2026). v6 is v5 plus two changes made after batch 5: a VBHN
+    number may lack the year ("37/VBHN-BXD"), and when page 1 gives nothing, the VBHN
+    authentication block ("XÁC THỰC VĂN BẢN HỢP NHẤT") is found in the text layer, cropped and
+    read by Vision and Qwen like a header. No person took part. v6 accepts 355 (**71.0%**, bar
+    70%), 0 wrong against the page, upper bound 0.8% → **GO**; certificate p = 0.028 → certified.
+    v5 on the same documents: 324 (64.8%), 0 wrong; it would have missed coverage again.
+    **The margin is thin.** The 95% interval for coverage is 66.9–74.8%, so the next batch can
+    miss the bar with no change in the method. Of the 31 extra accepts, all 31 come from the
+    authentication block; the relaxed year rule added none on page 1.
+    **Consolidated texts are still mostly lost.** 107 of the 500 are VBHN; v6 accepts 31 (29.0%),
+    all correct. The block was found in 39 of them; 8 of those 39 were rejected. 9 VBHN are scans,
+    where v6 cannot look for the block. Seen after scoring, not a test: of the 59 text-layer VBHN
+    where no block was found, 21 hold both "XÁC THỰC" and "HỢP NHẤT" somewhere in the text, but
+    not in the order or spacing `auth_locate` looks for; 22 hold neither.
+    Without VBHN, v6 accepts 82.4% (324 / 393). Scans 79.4%; PDFs with a text layer 46.5%.
+    **Truth.** All 355 accepts agree with the listing, so nothing was adjudicated. The blind spot
+    check read 100 random accepts (86 from the header band, 14 from the block crop): 0
+    mismatches; reads paired with the wrong id were flagged 100 of 100. Up to 3.0% of the 255
+    unsampled accepts could still hide an error. The reader is the agent that built v6.
+    Vision alone, all 500: number 73.6%, date 75.0% (scans 91.2% and 92.8%). The format checks let
+    116 of 470 wrong reads through (upper bound 28.2%), worse than batch 5, again mostly VBHN
+    title dates. Dropout costs 0.6 points.
+
 **What this means for the plan.** Printed administrative documents are within reach of Apple
 Vision, but their key fields carry handwriting or an overlay, and Vision's misreads there are
 plausible numbers. The design that holds up is the one the verifier already assumes: compare
@@ -166,15 +190,18 @@ pre-registered, with one error, which came from writing "Đ" as "D" rather than 
 The test passes for documents from the central government, and only 72% of scans are accepted.
 On the fifth batch, v5 passed the certificate again (0 wrong in 328) but missed the coverage bar,
 because consolidated texts carry no number on page 1. Reading their number from elsewhere is the
-next coverage gain; the risk side has now held on two batches in a row.
+next coverage gain; the risk side has now held on two batches in a row. On the sixth batch, v6
+read that number from the authentication block and passed both bars, coverage by one point: the
+risk side has held on three batches, coverage only just.
 
 ## Not tested here
 
 - **The signer's name under the seal.** No ground truth.
 - **Phone photos.** These are flatbed scans and rendered PDFs.
-- **Commune-level documents.** Of 1,726 documents, all but 6 provincial ones come from central
+- **Commune-level documents.** Of 2,226 documents, all but 6 provincial ones come from central
   government; commune paperwork may be older, fainter and more often handwritten.
-- **The number of a consolidated text (VBHN).** In batch 5 it is not on page 1 and v5 abstains.
+- **The number of a scanned consolidated text (VBHN).** v6 finds the authentication block only
+  through the text layer; in a scan it abstains. Batch 6 had 9 such scans.
 - **The body text.** Only the header and the signer block were read.
 
 ## Reproduce
@@ -203,4 +230,10 @@ VBCP_DIR=data/private/vbcp5 uv run python audits/real_scans/run_scans.py --to-ad
 VBCP_DIR=data/private/vbcp5 uv run python audits/real_scans/run_scans.py --skip-ocr --spot5
 #   read the 30-65% header band of each blind into spot_check.json {"id": {number, date}}
 VBCP_DIR=data/private/vbcp5 uv run python audits/real_scans/run_scans.py --skip-ocr --confirm5 --md audits/real_scans/RESULTS_v5.md
+# sixth batch (v6): run_scans renders and crops the authentication block (auth_small.png) too;
+#   Qwen as above on head_small.png -> qwen.jsonl and on auth_small.png -> qwen_auth.jsonl
+VBCP_DIR=data/private/vbcp6 uv run python audits/real_scans/run_scans.py --to-adjudicate6
+VBCP_DIR=data/private/vbcp6 uv run python audits/real_scans/run_scans.py --skip-ocr --spot6
+#   prints id:where; read the header band, or auth.png when where = auth, blind into spot_check.json
+VBCP_DIR=data/private/vbcp6 uv run python audits/real_scans/run_scans.py --skip-ocr --confirm6 --md audits/real_scans/RESULTS_v6.md
 ```
