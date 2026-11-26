@@ -31,3 +31,19 @@ hand** on a typed template, and the red seal sits on the signer block, not on th
    year inside the number equal to the year of the date, a valid date not after the listing
    date), the share that is still wrong, with its 95% upper bound. No GO bar: 193 documents
    cannot certify 1% (a zero-error certificate needs about 230 units).
+
+## Confirmation batch (written 2026-11-26, before listing or downloading it)
+
+The parser of RESULTS §4 ("v2": `read_number2`, `read_date2`, `checks_pass`) was written after
+seeing the errors of the first 193 documents, so its 1-in-168 is optimistic. It is frozen as of
+commit a0bdc77 and run unchanged on documents the project has not seen: listing positions 251–500
+on vanban.chinhphu.vn as of 2026-11-26, minus any already in the first batch, first PDF at most
+5 MB. Only input paths may change in the code; no parser or check.
+
+1. **Primary.** Vision, as scanned, v2: wrong among accepted, with its 95% upper bound.
+   GO (v2 becomes the parser) if the upper bound is ≤ 3%; KILL v2 (back to v1, and the §4 gain is
+   reported as not replicated) if it is > 5%; ITERATE in between.
+2. **Replication of §1.** Vision number and date exact match, same bars as §1 (≥ 95% each).
+3. **Certificate.** Computed on this batch alone, never pooled with the first 193 (v2 was fitted
+   to them). A zero-error certificate at α = 1%, δ = 0.1 needs at least 230 accepted documents;
+   if fewer are accepted, say so and do not certify.
