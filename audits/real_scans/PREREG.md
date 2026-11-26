@@ -47,3 +47,40 @@ on vanban.chinhphu.vn as of 2026-11-26, minus any already in the first batch, fi
 3. **Certificate.** Computed on this batch alone, never pooled with the first 193 (v2 was fitted
    to them). A zero-error certificate at α = 1%, δ = 0.1 needs at least 230 accepted documents;
    if fewer are accepted, say so and do not certify.
+
+## Third batch (v3) (written 2026-11-26, before listing or downloading it)
+
+The confirmation batch killed v2. v3 was then written on batches 1 and 2 (386 documents), so its
+numbers there are in-sample:
+
+- `read_number3` (v2 plus "&"), `read_date2`, and `checks_pass3`: `checks_pass` plus "TT, NĐ,
+  VBHN, TTLT and QH numbers carry a /YYYY/ segment" (true for 496 of the 498 listed numbers of
+  batches 1 and 2, the two exceptions being VBHN). This catches the slash read as "1".
+- A second read: Qwen3.5-4B (MLX 4-bit, greedy, 96 tokens) on the header crop scaled to 1240 px
+  wide, with `header_prompt.txt`. A document is accepted only if Qwen's number and date equal
+  Vision's.
+
+On batches 1 and 2 the rules alone accept 334, 2 wrong (both handwritten digits: "2223" read as
+"2023", "1918" as "4948"). Adding the agreement accepts 296 (76.7%), 0 wrong. Qwen disagrees on
+both errors, and also rejects 36 documents that Vision read correctly. Qwen is not independent of
+Vision: at full resolution it made the same "2223" → "2023" error.
+
+v3 is frozen as of the commit that adds this section: `run_scans.py`, `header_prompt.txt`,
+`vlm_ocr.py`, the model and the 1240 px scale. Only input paths may change.
+
+**Data.** Listing positions 501 onward on vanban.chinhphu.vn as listed on 2026-11-26, skipping
+any document already in batch 1 or 2, first PDF at most 5 MB, in listing order, until 340 PDFs
+are downloaded. 340 is set so that about 260 are expected to be accepted at the dev coverage (76.7%), and about
+250 at the lower batch-1 coverage (73.6%), both above the 230 the certificate needs.
+
+1. **Primary.** v3 (rules + agreement): wrong among accepted, with its 95% upper bound.
+   GO if the upper bound is ≤ 3%; KILL v3 if it is > 5% (then two on-device engines that agree
+   are not a second source, and the number and date need an exact side A such as the issuing
+   register); ITERATE in between.
+2. **Coverage.** Accepted share ≥ 70%. Below that, v3 sends too much to a person to be worth its
+   cost, whatever its error rate.
+3. **Certificate.** On this batch alone, never pooled with batches 1 and 2. At α = 1%, δ = 0.1 it
+   needs at least 230 accepted and, in practice, no error (one error needs 388 accepted). If the
+   batch falls short, say so and do not certify. A certificate covers central-government
+   documents on this site in this period, not commune paperwork.
+4. **Report only.** The rules alone, and how many correct Vision reads Qwen's disagreement costs.

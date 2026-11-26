@@ -1,0 +1,4 @@
+This is the top of a Vietnamese official document. Write exactly two lines and nothing else.
+Line 1: the document number that follows "Số:", copied exactly (for example 123/2026/TT-BTC or 2303/QĐ-TTg).
+Line 2: the issue date from "ngày .. tháng .. năm ..", as dd/mm/yyyy.
+Copy the digits exactly as written, including handwritten ones. If a field cannot be read, write ? on its line.

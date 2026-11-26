@@ -110,6 +110,45 @@ def checks_pass(num: str | None, d: tuple[int, int, int] | None) -> bool:
     return not (y and int(y.group(1)) != d[2])
 
 
+# --- v3 (written 2026-11-26 after the confirmation batch killed v2; developed on batches 1 and 2) ---
+NUM3_RE = re.compile(r"\s*[:.]?\s*(\d+/(?:\d{4}/)?[A-ZĐÐ][A-ZĐÐa-z0-9&\-]*)")
+# Normative documents carry the year: "84/2026/TT-BXD". In the 498 listed numbers of batches 1-2,
+# TT, NĐ and QH always do and VBHN does in 119 of 121 (the 2 others are abstained on, not wrong).
+YEAR_TYPES = ("TT", "NĐ", "VBHN", "TTLT", "QH")
+QDATE_RE = re.compile(r"(\d{1,2})\s*/\s*(\d{1,2})\s*/\s*(\d{4})")
+
+
+def read_number3(text: str) -> str | None:
+    """v2, with "&" allowed in the symbol ("155/QĐ-BCĐNO&TTBĐS")."""
+    t = DOTS.sub("", unicodedata.normalize("NFC", text))
+    at = t.find("Số")
+    if at < 0:
+        return None
+    t = re.sub(r"\s*([/\-])\s*", r"\1", t[at + 2 : at + 60])
+    t = re.sub(r"(?<=\d)\s+(?=\d)", "", t)
+    m = NUM3_RE.match(t)
+    return canon(m.group(1)) if m else None
+
+
+def checks_pass3(num: str | None, d: tuple[int, int, int] | None) -> bool:
+    """v2's checks, plus: a normative type must carry a year segment. A slash read as "1"
+    ("7/2026/VBHN" -> "712026/VBHN") loses that segment and is rejected."""
+    if not checks_pass(num, d):
+        return False
+    parts = num.split("/")  # type: ignore[union-attr]
+    kind = parts[-1].split("-")[0]
+    has_year = len(parts) >= 3 and re.fullmatch(r"\d{4}", parts[1]) is not None
+    return has_year or not any(kind.startswith(k) for k in YEAR_TYPES)
+
+
+def read_qwen(text: str) -> tuple[str | None, tuple[int, int, int] | None]:
+    """Qwen's two-line answer (header_prompt.txt): the number, then dd/mm/yyyy."""
+    lines = [x.strip() for x in text.splitlines() if x.strip()]
+    num = read_number3("Số: " + lines[0]) if lines else None
+    m = QDATE_RE.search(lines[1]) if len(lines) > 1 else None
+    return num, (tuple(int(g) for g in m.groups()) if m else None)  # type: ignore[return-value]
+
+
 def seal_box(rgb: np.ndarray) -> tuple[int, int, int, int] | None:
     """Bounding box of the largest blob of red ink, grown to take in the signer's title."""
     red = red_mask(rgb[::4, ::4])
@@ -146,6 +185,8 @@ def prep(doc_id: int) -> dict:
     p1 = Image.open(out / "p1.png").convert("RGB")
     p1.crop((0, 0, p1.width, int(p1.height * HEADER_SHARE))).save(out / "head.png")
     rec["head_red"] = dropout(str(out / "head.png"), str(out / "head_drop.png"))
+    head = Image.open(out / "head.png")
+    head.resize((1240, head.height * 1240 // head.width), Image.LANCZOS).save(out / "head_small.png")  # for Qwen
     last = np.asarray(Image.open(out / "plast.png").convert("RGB"))
     rec["last_red"] = float(red_mask(last[::4, ::4]).mean())
     box = seal_box(last)
@@ -176,6 +217,7 @@ def main() -> None:
     ap.add_argument("--md")
     ap.add_argument("--skip-ocr", action="store_true", help="reuse <VBCP_DIR>/ocr.json")
     ap.add_argument("--confirm", action="store_true", help="add the confirmation-batch verdicts of PREREG.md")
+    ap.add_argument("--confirm3", action="store_true", help="add the third-batch (v3) verdicts of PREREG.md")
     args = ap.parse_args()
     listing = json.loads((PRIV / "docs.json").read_text(encoding="utf-8"))
     ids = sorted(int(p.stem) for p in (PRIV / "pdf").glob("*.pdf"))
@@ -203,6 +245,10 @@ def main() -> None:
             ocr["T"] = dict(zip(heads, pool.map(tesseract, heads), strict=True))
         ocr_path.write_text(json.dumps(ocr, ensure_ascii=False), encoding="utf-8")
 
+    qwen = {}
+    if (PRIV / "qwen.jsonl").exists():  # vlm_ocr.py --prompt-file audits/real_scans/header_prompt.txt
+        with open(PRIV / "qwen.jsonl", encoding="utf-8") as fh:
+            qwen = {j["path"]: j["text"] for j in map(json.loads, fh)}
     rows = []
     for r in recs:
         d = PRIV / "pages" / f"{r['id']:03d}"
@@ -229,6 +275,19 @@ def main() -> None:
                     "date_ok": dt == td,
                     "pass": checks_pass(num, dt),
                 }
+        text = ocr["V"].get(str(d / "head.png"), "")
+        num, dt = read_number3(text), read_date2(text)
+        q = qwen.get(str(d / "head_small.png"))
+        qn, qd = read_qwen(q) if q is not None else (None, None)
+        row["v3"] = {
+            "num": num,
+            "date": dt,
+            "num_ok": num == tn,
+            "date_ok": dt == td,
+            "rules": checks_pass3(num, dt),
+            "qwen": q is not None,
+            "agree": q is not None and qn == num and qd == dt,
+        }
         row["layer"] = {"num": r.get("layer_num"), "date": r.get("layer_date")}
         row["layer"]["num_ok"] = row["layer"]["num"] == tn
         row["layer"]["date_ok"] = tuple(row["layer"]["date"] or ()) == td
@@ -245,7 +304,7 @@ def main() -> None:
         ),
         encoding="utf-8",
     )
-    text = report(rows) + (confirm(rows) if args.confirm else [])
+    text = report(rows) + (confirm(rows) if args.confirm else []) + (confirm3(rows) if args.confirm3 else [])
     print("\n".join(text))
     if args.md:
         Path(args.md).write_text("\n".join(text) + "\n", encoding="utf-8")
@@ -281,6 +340,49 @@ def confirm(rows: list[dict]) -> list[str]:
             if cert
             else "**not certified**" + (" (fewer than 230 accepted)." if len(acc) < 230 else ".")
         ),
+    ]
+
+
+def confirm3(rows: list[dict]) -> list[str]:
+    """Verdicts of PREREG.md, "Third batch (v3)", on this batch alone."""
+    missing = [x["id"] for x in rows if not x["v3"]["qwen"]]
+    if missing:  # a missing second read would count as a rejection and inflate safety
+        raise SystemExit(f"no Qwen read for {len(missing)} documents (first: {missing[:5]}); run vlm_ocr.py first")
+    n = len(rows)
+    ok = [x["v3"]["num_ok"] and x["v3"]["date_ok"] for x in rows]
+    acc = [i for i, x in enumerate(rows) if x["v3"]["rules"] and x["v3"]["agree"]]
+    wrong = sum(not ok[i] for i in acc)
+    ub = cp_upper(wrong, len(acc)) if acc else 1.0
+    v1 = "GO" if ub <= 0.03 else ("KILL v3" if ub > 0.05 else "ITERATE")
+    cov = len(acc) / n
+    p = binom_cdf(wrong, len(acc), ALPHA) if acc else 1.0
+    cert = len(acc) >= 230 and p <= DELTA
+    rul = [i for i, x in enumerate(rows) if x["v3"]["rules"]]
+    rw = sum(not ok[i] for i in rul)
+    lost = sum(ok[i] for i in rul if i not in set(acc))
+    scans = [i for i, x in enumerate(rows) if x["scan"]]
+    acc_s = [i for i in acc if rows[i]["scan"]]
+    return [
+        "",
+        "## 7. Third batch: pre-registered verdicts for v3",
+        "",
+        'PREREG.md, "Third batch (v3)": v3 frozen at the commit that added that section, documents not seen',
+        "before. v3 accepts a document when Vision's read passes `checks_pass3` and Qwen3.5-4B's read of the",
+        "same header (1240 px wide, `header_prompt.txt`) gives the same number and date.",
+        "",
+        f"1. Primary (v3, rules + agreement): {len(acc)} of {n} accepted, {wrong} wrong, 95% upper bound "
+        f"{pct(ub)} → **{v1}**.",
+        f"2. Coverage: {pct(cov)} (bar ≥ 70%) → **{'met' if cov >= 0.70 else 'missed'}**. "
+        f"Scans: {len(acc_s)} of {len(scans)} accepted.",
+        f"3. Certificate at α = {pct(ALPHA)}, δ = {DELTA}: {len(acc)} accepted, binomial p = {p:.3f} → "
+        + (
+            "**certified**."
+            if cert
+            else "**not certified**" + (" (fewer than 230 accepted)." if len(acc) < 230 else ".")
+        ),
+        f"4. Report only: rules without Qwen accept {len(rul)}, {rw} wrong (upper bound "
+        f"{pct(cp_upper(rw, len(rul)) if rul else 1.0)}). Qwen's disagreement rejects {lost} documents that "
+        "Vision read correctly.",
     ]
 
 
