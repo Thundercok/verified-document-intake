@@ -92,6 +92,31 @@ ground truth.
    The cost of the emblem rule falls on consolidated texts, which are published weeks after
    issue: on batch 3, v4 accepts 72.6%, close to the 70% bar.
 
+9. **v4 passes on a fourth batch, and the certificate test passes by a small margin
+   ([RESULTS_v4.md](RESULTS_v4.md)).** v4 was frozen and pre-registered (PREREG.md) before 500
+   unseen documents were listed (positions 1001 onward, 16/06 to 27/08/2026). Truth was the page:
+   the two accepted documents that disagreed with the listing were read from the header image alone,
+   without the engines' reads or the listing's values. v4 accepts 395 of 500 (79.0%, bar 70%), and
+   1 is wrong against the page: upper bound 1.2%, so **GO**. The certificate test passes (p = 0.094
+   against δ = 0.1). One error needs at least 388 accepted documents, and 395 were accepted. As
+   pre-registered, the claim is this: on central government documents published on this site in this period,
+   v4's accepted number-and-date pairs are wrong at most 1% of the time, with 90% confidence.
+   The one error is not a misread digit. Vision read "1279/QD-TTg" and Qwen read "1279/QĐ-TTg". v4
+   tolerates "Đ"/"D" in Qwen's read, so the two agreed, and v4 output Vision's spelling without the
+   stroke. A search for "QĐ" would miss the record. Taking the "Đ" from either engine fixes this,
+   but the fix was written after scoring, so it needs another batch.
+   Coverage splits by source: 72.4% on the 323 scans (the one error is a scan) and 91.0% on the 177
+   PDFs with a text layer. The full-resolution re-read (report only) brings coverage to 409, with no new
+   error. One of the documents it adds has a listing fault: the listing says 21/08 and the page says
+   11/08. Vision's exact match is 91.8% for the number and 90.0% for the date (ITERATE for the
+   fourth time), and the format checks alone let 15 of 423 wrong reads through (upper bound 5.4%).
+   Dropout costs nothing on this batch (+0.4 points).
+   **Limits of this result.** The reader who adjudicated is the same agent that built v4. That
+   reader saw no reads or listing values, but it is not an independent person. Documents that agree
+   with the listing were not looked at, so a listing fault that both engines reproduce would be
+   missed. The certificate holds for this site and period only, not for commune paperwork or phone
+   photos.
+
 **What this means for the plan.** Printed administrative documents are within reach of Apple
 Vision, but their key fields carry handwriting or an overlay, and Vision's misreads there are
 plausible numbers. The design that holds up is the one the verifier already assumes: compare
@@ -100,13 +125,15 @@ code) rather than trust a single read. Red dropout can stay in the pipeline; it 
 measurable. On the third batch, two engines that agree reached an upper bound of 2.9% on their
 own, and their remaining disagreements with the listing were the listing's fault. The open
 problem moves from reading to checking: a side A that is itself wrong about 1% of the time cannot
-certify 1%.
+certify 1%. On the fourth batch, scored against the page, v4 passed the 1% certificate test,
+pre-registered, with one error, which came from writing "Đ" as "D" rather than from a misread digit.
+The test passes for documents from the central government, and only 72% of scans are accepted.
 
 ## Not tested here
 
 - **The signer's name under the seal.** No ground truth.
 - **Phone photos.** These are flatbed scans and rendered PDFs.
-- **Commune-level documents.** All 726 come from central government; commune paperwork may be
+- **Commune-level documents.** All 1,226 come from central government; commune paperwork may be
   older, fainter and more often handwritten.
 - **The body text.** Only the header and the signer block were read.
 
@@ -124,4 +151,10 @@ VBCP_DIR=data/private/vbcp2 uv run python audits/real_scans/run_scans.py --confi
 HF_HUB_OFFLINE=1 uv run --group vlm python audits/ocr_pilot/vlm_ocr.py paths.txt data/private/vbcp3/qwen.jsonl \
     --prompt-file audits/real_scans/header_prompt.txt --max-tokens 96
 VBCP_DIR=data/private/vbcp3 uv run python audits/real_scans/run_scans.py --confirm3 --md audits/real_scans/RESULTS_v3.md
+# fourth batch (v4): Qwen as above into data/private/vbcp4/qwen.jsonl, then OCR and the ids to adjudicate
+VBCP_DIR=data/private/vbcp4 uv run python audits/real_scans/run_scans.py --to-adjudicate
+#   report-only stage 2: same Qwen command on the full-resolution head.png of rejections whose
+#   date reads, passes the e-signature check and has a candidate passing the checks -> qwen_full.jsonl
+#   then rerun --skip-ocr --to-adjudicate; read each listed head.png blind into adjudication.json
+VBCP_DIR=data/private/vbcp4 uv run python audits/real_scans/run_scans.py --skip-ocr --confirm4 --md audits/real_scans/RESULTS_v4.md
 ```
