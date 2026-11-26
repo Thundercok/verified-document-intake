@@ -122,3 +122,36 @@ both engines reproduce exactly would be missed, which is reported as a limit.
    photos.
 4. **Report only.** Errors against the listing as published; the full-resolution Qwen re-read of
    rejections (it let a shared error through on dev); scans versus PDFs.
+
+## Blind spot check of the fourth batch (written 2026-11-26, after scoring batch 4, before drawing the sample)
+
+The batch-4 truth was the listing, except for the 2 accepted documents that disagreed with it. An
+accepted document whose listing entry is wrong in exactly the way both engines read it would not
+have been looked at. This check measures that blind spot. It cannot confirm the certificate: 0 of
+100 still allows a hidden-error rate of up to 3.0% (one-sided 95%). What it can do is falsify the
+certificate. One hidden error makes the count 2 of 395, and 2 errors need at least 531 accepted
+documents.
+
+**Population.** The 394 batch-4 documents that v4 accepts at stage 1 and that agree with the
+listing (233 scans).
+
+**Sample.** 100 ids drawn by `random.Random(20261126).sample(sorted(ids), 100)`, drawn after
+this section is committed. The script prints the ids only.
+
+**Reading.** For each id, the reader sees only that page's header image. The image is cropped
+to a band from 30% to 65% of the header's height and is otherwise as rendered. If the number line
+or the date line falls outside the band, the reader is shown the full header. The reader sees no
+engine read and no listing value, and writes the number and date the page shows into
+`data/private/vbcp4/spot_check.json`, or "?" for a field that cannot be read with certainty. This
+is the same reader as the adjudication: the agent that built v4. That is a limit.
+
+**Scoring.** The reader's reads are compared with the value both the listing and v4 give. The
+comparison folds "Đ"/"D", ignores spacing and maps Cyrillic letters to Latin. If they differ, the
+reader looks at that field again, zoomed in, knowing only that there is a mismatch and not the
+value. The reader then keeps or corrects their read. A confirmed mismatch, where the reader is sure,
+is a hidden error. A mismatch the reader withdraws is a reader error. Both counts are reported.
+
+1. **Primary.** If there is at least 1 hidden error, the batch-4 certificate is withdrawn and the
+   README says so. If there are 0, the certificate stands and the README reports the 3.0% bound
+   that this check leaves.
+2. **Report only.** The number of "?" fields, the reader-error count, and scans versus PDFs.
