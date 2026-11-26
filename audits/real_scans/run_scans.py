@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import random
 import re
 import subprocess
 import sys
@@ -227,6 +228,44 @@ def read_v4(text: str, qtexts: list[str]) -> tuple[str | None, tuple[int, int, i
     return None, d
 
 
+def qwen_number(qtext: str) -> str | None:
+    lines = [x.strip() for x in qtext.splitlines() if x.strip()]
+    return canon((read_numbers4("Số: " + lines[0]) or [None])[0] or "") or None if lines else None
+
+
+CODES = {
+    x.strip()
+    for x in (Path(__file__).parent / "issuer_codes.txt").read_text(encoding="utf-8").splitlines()
+    if x.strip() and not x.startswith("#")
+}
+
+
+def merge_d(vn: str, qn: str | None) -> str:
+    """v5: v4 wrote Vision's spelling, and Vision once dropped the stroke of Đ ("1279/QD-TTg",
+    batch 4's only error). Qwen both drops it and adds it ("BGDĐT" read "BGĐĐT"), so neither
+    engine's Đ is trusted alone: segment by segment, Qwen's spelling replaces Vision's only when
+    Vision's is not a known code (issuer_codes.txt) and Qwen's is."""
+    if qn is None or qn.translate(FOLD) != vn.translate(FOLD):
+        return vn
+    sv, sq = re.split(r"([/-])", vn), re.split(r"([/-])", qn)
+    if len(sv) != len(sq):
+        return vn
+    return "".join(q if v != q and v not in CODES and q in CODES else v for v, q in zip(sv, sq, strict=True))
+
+
+def read_v5(text: str, qtexts: list[str]) -> tuple[str | None, tuple[int, int, int] | None]:
+    """read_v4, then merge_d with the Qwen read that agreed."""
+    d = read_date2(text)
+    if d is None or not emblem_ok(text, d):
+        return None, d
+    cands = [n for n in read_numbers4(text) if checks_pass3(n, d)]
+    for q in qtexts:
+        hits = [n for n in cands if agree4(n, d, q)]
+        if len(hits) == 1:
+            return merge_d(hits[0], qwen_number(q)), d
+    return None, d
+
+
 def seal_box(rgb: np.ndarray) -> tuple[int, int, int, int] | None:
     """Bounding box of the largest blob of red ink, grown to take in the signer's title."""
     red = red_mask(rgb[::4, ::4])
@@ -300,6 +339,9 @@ def main() -> None:
     ap.add_argument(
         "--to-adjudicate", action="store_true", help="list v4-accepted ids that differ from the listing (no values)"
     )
+    ap.add_argument("--confirm5", action="store_true", help="add the fifth-batch (v5) verdicts of PREREG.md")
+    ap.add_argument("--to-adjudicate5", action="store_true", help="v5-accepted ids that differ from the listing")
+    ap.add_argument("--spot5", action="store_true", help="the 100 v5-accepted ids to read blind (PREREG)")
     args = ap.parse_args()
     listing = json.loads((PRIV / "docs.json").read_text(encoding="utf-8"))
     ids = sorted(int(p.stem) for p in (PRIV / "pdf").glob("*.pdf"))
@@ -394,6 +436,14 @@ def main() -> None:
             "ok_page": (n1 or n2, d4) == (pn, pd),
             "adjudicated": bool(page),
         }
+        n5, d5 = read_v5(text, [q] if q is not None else [])
+        row["v5"] = {
+            "num": n5,
+            "date": d5,
+            "ok_listing": (n5, d5) == (truth4(truth["number"]), td),
+            "ok_page": (n5, d5) == (pn, pd),
+            "adjudicated": bool(page),
+        }
         row["layer"] = {"num": r.get("layer_num"), "date": r.get("layer_date")}
         row["layer"]["num_ok"] = row["layer"]["num"] == tn
         row["layer"]["date_ok"] = tuple(row["layer"]["date"] or ()) == td
@@ -413,8 +463,16 @@ def main() -> None:
     if args.to_adjudicate:  # ids only: the reader looks at the page without seeing any engine's read
         print(" ".join(str(x["id"]) for x in rows if x["v4"]["stage"] and not x["v4"]["ok_listing"]))
         return
+    if args.to_adjudicate5:  # v5 accepts that differ from the listing, ids only
+        print(" ".join(str(x["id"]) for x in rows if x["v5"]["num"] and not x["v5"]["ok_listing"]))
+        return
+    if args.spot5:  # PREREG "Fifth batch": 100 v5 accepts that agree with the listing, ids only
+        agree = sorted(x["id"] for x in rows if x["v5"]["num"] and x["v5"]["ok_listing"])
+        print(" ".join(map(str, random.Random(SPOT_SEED).sample(agree, min(SPOT_N, len(agree))))))
+        return
     text = report(rows) + (confirm(rows) if args.confirm else []) + (confirm3(rows) if args.confirm3 else [])
     text += confirm4(rows) if args.confirm4 else []
+    text += confirm5(rows) if args.confirm5 else []
     print("\n".join(text))
     if args.md:
         Path(args.md).write_text("\n".join(text) + "\n", encoding="utf-8")
@@ -529,6 +587,57 @@ def confirm4(rows: list[dict]) -> list[str]:
     out.append(
         f"- Against the listing as published: {wl} wrong of {len(acc)}; "
         f"{sum(x['adjudicated'] for x in acc)} accepted documents were adjudicated."
+    )
+    return out
+
+
+SPOT_SEED, SPOT_N = 20261127, 100
+
+
+def confirm5(rows: list[dict]) -> list[str]:
+    """Verdicts of PREREG.md, "Fifth batch (v5)", on this batch alone."""
+    missing = [x["id"] for x in rows if not x["v3"]["qwen"]]
+    if missing:
+        raise SystemExit(f"no Qwen read for {len(missing)} documents (first: {missing[:5]}); run vlm_ocr.py first")
+    spot = PRIV / "spot_check.json"
+    if not spot.exists():
+        raise SystemExit("no spot_check.json: the blind spot check is part of the truth (PREREG)")
+    n_spot = sum(1 for k in json.loads(spot.read_text(encoding="utf-8")) if not k.startswith("_"))
+    n = len(rows)
+    out = ["", "## 9. Fifth batch: pre-registered verdicts for v5", ""]
+    out += [
+        'PREREG.md, "Fifth batch (v5)": v5 frozen at the commit that added that section, documents not seen',
+        "before. Truth is the page: the listing, except where a reader who saw only the page image",
+        "corrected it (`adjudication.json`): every accepted document that disagrees with the listing, and",
+        f"the hidden errors found by a blind read of {n_spot} random accepted documents that agree with it.",
+        "",
+    ]
+    for name, key in (("Primary, v5", "v5"), ("Report only, v4", "v4")):
+        a = [x[key] for x in rows if x[key]["num"] and (key == "v5" or x[key]["stage"] == 1)]
+        w = sum(not x["ok_page"] for x in a)
+        ub = cp_upper(w, len(a)) if a else 1.0
+        p = binom_cdf(w, len(a), ALPHA) if a else 1.0
+        verdict = "GO" if ub <= 0.03 else (f"KILL {key}" if ub > 0.05 else "ITERATE")
+        cert = len(a) >= 230 and p <= DELTA
+        cov = len(a) / n
+        out.append(
+            f"- {name}: {len(a)} of {n} accepted ({pct(cov)}, bar 70% → {'met' if cov >= 0.7 else 'missed'}), "
+            f"{w} wrong against the page, 95% upper bound {pct(ub)} → **{verdict}**; certificate at "
+            f"α = {pct(ALPHA)}, δ = {DELTA}: p = {p:.3f} → **{'certified' if cert else 'not certified'}**."
+        )
+    acc = [x for x in rows if x["v5"]["num"]]
+    for lab, g in (
+        ("scans", [x for x in rows if x["scan"]]),
+        ("PDFs with a text layer", [x for x in rows if not x["scan"]]),
+    ):
+        ga = [x for x in g if x["v5"]["num"]]
+        out.append(
+            f"- v5 on {lab}: {len(ga)} of {len(g)} accepted ({pct(len(ga) / len(g)) if g else '—'}), "
+            f"{sum(not x['v5']['ok_page'] for x in ga)} wrong against the page."
+        )
+    out.append(
+        f"- Against the listing as published: {sum(not x['v5']['ok_listing'] for x in acc)} wrong of {len(acc)}; "
+        f"{sum(x['v5']['adjudicated'] for x in acc)} accepted documents were adjudicated."
     )
     return out
 

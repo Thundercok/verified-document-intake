@@ -155,3 +155,49 @@ is a hidden error. A mismatch the reader withdraws is a reader error. Both count
    README says so. If there are 0, the certificate stands and the README reports the 3.0% bound
    that this check leaves.
 2. **Report only.** The number of "?" fields, the reader-error count, and scans versus PDFs.
+
+## Fifth batch (v5) (written 2026-11-26, before listing or downloading it)
+
+v4 passed on batch 4 (1 wrong in 395 accepted, upper bound 1.2%, certificate p = 0.094). Its one
+error was "QĐ" written as "QD": Vision dropped the stroke, the Đ/D tolerance let it agree with
+Qwen, and v4 output Vision's spelling. v5 (`read_v5`) is `read_v4` plus `merge_d`. If Vision's
+read and the agreeing Qwen read differ only in "Đ"/"D", then segment by segment Qwen's spelling
+replaces Vision's only when Vision's segment is not a code in `issuer_codes.txt` and Qwen's is.
+That file holds the 69 letter segments in the listings of batches 1–4. The rule is narrower than
+"keep Đ if either engine saw it", which was tried first: Qwen also adds the stroke ("BGDĐT" read
+as "BGĐĐT"), and that version broke 3 documents in-sample. In-sample on batches 1–4 (1,226
+documents), v5 differs from v4 on 1 document, the batch-4 error, and accepts 969 with 0 wrong
+against the page. v5 is frozen as of the commit that adds this section: `run_scans.py`,
+`issuer_codes.txt`, `header_prompt.txt`, `vlm_ocr.py`, the model and the 1240 px scale. Only input
+paths may change.
+
+**Data.** Pages 37 onward of the listing on vanban.chinhphu.vn as of 2026-11-26, read with the
+batch-4 lister (50 documents a page, older than batch 4). Any document whose number is in the
+listings of batches 1–4 is skipped. First PDF at most 5 MB, in listing order, until 500 PDFs are
+downloaded.
+
+**Truth: the page, read blind, with no person involved.** All reads are by the agent that built
+v5. It sees a header image and nothing else: no engine read and no listing value. This is the
+same limit as batch 4.
+- Every v5 accept that disagrees with the listing (`--to-adjudicate5`, ids only) is read from the
+  full header and written to `adjudication.json`. If the page cannot be read with certainty, the
+  listing stands.
+- A spot check of the accepts that agree with the listing: 100 ids drawn by `--spot5`
+  (`random.Random(20261127).sample`), each read from the 30–65% band of the header, or the full
+  header if a field falls outside the band, into `spot_check.json`. If a read disagrees with the
+  listing, the reader looks again, zoomed in, knowing only that there is a mismatch. A read the
+  reader confirms goes into `adjudication.json` and counts as an error in the primary. A read the
+  reader withdraws is reported as a reader error.
+- Hidden errors among the roughly 290 agreeing documents that are not sampled stay unseen. This
+  is reported as a limit.
+
+1. **Primary.** v5, wrong against the page among accepted, with its 95% upper bound. GO if ≤ 3%;
+   KILL v5 if > 5%; ITERATE in between.
+2. **Coverage.** Accepted share ≥ 70%.
+3. **Certificate.** On this batch alone, never pooled. Binomial test at α = 1%, δ = 0.1
+   (n ≥ 230). The claim if it passes is the same as for batch 4: central government documents
+   on this site, this period, accepted pairs wrong at most 1% of the time with 90% confidence. If
+   the spot check finds a hidden error, it counts. If it finds none, the README restates that up
+   to about 3% of the unsampled agreeing documents could still hide one.
+4. **Report only.** v4 on the same documents; scans versus PDFs; errors against the listing as
+   published; "?" fields and reader errors in the spot check. No full-resolution re-read this time.
