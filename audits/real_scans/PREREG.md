@@ -84,3 +84,41 @@ are downloaded. 340 is set so that about 260 are expected to be accepted at the 
    batch falls short, say so and do not certify. A certificate covers central-government
    documents on this site in this period, not commune paperwork.
 4. **Report only.** The rules alone, and how many correct Vision reads Qwen's disagreement costs.
+
+## Fourth batch (v4) (written 2026-11-26, before listing or downloading it)
+
+v3 passed its bar on the third batch (upper bound 2.9%), and its three errors against the listing
+were listing faults. v4 was then written on all 726 documents of batches 1–3, so its numbers there
+are in-sample: 574 accepted (79.1%), 0 wrong against the page, 3 listing faults (batch 3 alone:
+247 of 340, 72.6%).
+
+v4 (`read_v4`, stage 1 only): every number Vision's header text could stand for
+(`read_numbers4`), Vision's date (`read_date2`), `checks_pass3`, the e-signature check
+(`emblem_ok`: if the page prints an e-signature time, the issue date must be 0–14 days before
+it), and agreement with Qwen3.5-4B's read of the 1240 px header (`agree4`: "Đ"/"D" and a
+day-month swap tolerated in Qwen's read). Accepted only if exactly one candidate passes and
+agrees. It is frozen as of the commit that adds this section; only input paths may change.
+
+**Data.** Listing positions 1001 onward on vanban.chinhphu.vn as listed on 2026-11-26, skipping
+any document already in batches 1–3, first PDF at most 5 MB, in listing order, until 500 PDFs
+are downloaded. At the dev coverage (72.6–85.5% per batch) that is 360–430 accepted: enough for a
+certificate with no error, and with one error if coverage is at least 78%.
+
+**Truth: the page, adjudicated blind.** The listing is wrong about 1% of the time, so truth is
+the listing except where it disagrees with an accepted read. For each such document
+(`run_scans.py --to-adjudicate` prints the ids only), a reader opens the header image without
+seeing any engine's read or the listing's value, writes the number and date the page shows into
+`adjudication.json`, and that becomes the truth. If the page cannot be read with certainty, the
+listing stands. Documents that agree with the listing are not looked at; a listing fault that
+both engines reproduce exactly would be missed, which is reported as a limit.
+
+1. **Primary.** v4, wrong against the page among accepted, 95% upper bound. GO if ≤ 3%;
+   KILL v4 if > 5%; ITERATE in between.
+2. **Coverage.** Accepted share ≥ 70%.
+3. **Certificate.** On this batch alone, never pooled with batches 1–3. Binomial test at
+   α = 1%, δ = 0.1 (`binom_cdf(k, n, α) ≤ δ`, n ≥ 230). If it passes, the claim is: on central
+   government documents published on this site in this period, v4's accepted number-and-date
+   pairs are wrong at most 1% of the time, with 90% confidence. Not commune paperwork, not phone
+   photos.
+4. **Report only.** Errors against the listing as published; the full-resolution Qwen re-read of
+   rejections (it let a shared error through on dev); scans versus PDFs.
