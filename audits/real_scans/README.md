@@ -112,10 +112,20 @@ ground truth.
    fourth time), and the format checks alone let 15 of 423 wrong reads through (upper bound 5.4%).
    Dropout costs nothing on this batch (+0.4 points).
    **Limits of this result.** The reader who adjudicated is the same agent that built v4. That
-   reader saw no reads or listing values, but it is not an independent person. Documents that agree
-   with the listing were not looked at, so a listing fault that both engines reproduce would be
-   missed. The certificate holds for this site and period only, not for commune paperwork or phone
-   photos.
+   reader saw no reads or listing values, but it is not an independent person. The certificate holds
+   for this site and period only, not for commune paperwork or phone photos.
+
+10. **Blind spot check: 0 hidden errors in 100 (pre-registered, PREREG.md).** Batch-4 truth was the
+    listing wherever v4 agreed with it, so a listing fault that both engines reproduce would go
+    unseen. 100 of the 394 such documents (61 scans) were drawn with a fixed seed and read blind
+    from a band of the header image. 100 of 100 match the listing and v4, with no field marked
+    unreadable and no mismatch for the reader to withdraw. So the certificate stands. This check
+    could only have falsified it: 0 of 100 still allows hidden errors in up to 3.0% of agreeing
+    documents (one-sided 95%). The reader is the same agent as before.
+    Seen after scoring: two of the 100 listing entries spell "NĐ-CP" with a Cyrillic "Р". That
+    makes 5 Cyrillic letters in the listings so far. A plain string match against the listing
+    would count those as errors, and the scoring handles them by mapping the letters to Latin. In
+    all 100, v4's output matches the page exactly, including "Đ".
 
 **What this means for the plan.** Printed administrative documents are within reach of Apple
 Vision, but their key fields carry handwriting or an overlay, and Vision's misreads there are
