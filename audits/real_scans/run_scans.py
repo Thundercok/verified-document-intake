@@ -266,6 +266,86 @@ def read_v5(text: str, qtexts: list[str]) -> tuple[str | None, tuple[int, int, i
     return None, d
 
 
+# --- v6 (written 2026-11-27 after the fifth batch; developed on batches 4-5) ---
+# Batch 5 missed the coverage bar on consolidated texts (VBHN), for two reasons:
+# 1. VBHN numbers dropped the year in 2026: "37/VBHN-BXD", not "37/2026/VBHN-BXD" (no year in 0 of
+#    42 listed VBHN in batch 1, 48 of 86 in batch 4, 127 of 127 in batch 5). checks_pass3 demanded
+#    the year. checks_pass6 drops that demand for VBHN, but caps the number at 4 digits so that a
+#    slash read as "1" ("7/2026/VBHN" -> "712026/VBHN") still fails.
+# 2. A VBHN may print its number and date only in the authentication block at the end of the main
+#    text ("XÁC THỰC VĂN BẢN HỢP NHẤT"), laid out like a header. If page 1 gives no accept, the
+#    block is found in the PDF text layer, cropped from the rendered page, and read by Vision and
+#    Qwen exactly as a header; only a VBHN number is accepted from it.
+AUTH_RE = re.compile(r"XÁC\s*THỰC\s*VĂN\s*BẢN\s*HỢP\s*NHẤT")
+AUTH_TOP, AUTH_BOTTOM = 0.03, 0.08  # crop, as shares of the page height around the block's title
+
+
+def checks_pass6(num: str | None, d: tuple[int, int, int] | None) -> bool:
+    if not checks_pass(num, d):
+        return False
+    parts = num.split("/")  # type: ignore[union-attr]
+    kind = parts[-1].split("-")[0]
+    if kind == "VBHN" and len(parts) == 2:
+        return len(parts[0]) <= 4
+    has_year = len(parts) >= 3 and re.fullmatch(r"\d{4}", parts[1]) is not None
+    return has_year or not any(kind.startswith(k) for k in YEAR_TYPES)
+
+
+def auth_locate(pdf: Path) -> tuple[int, float] | None:
+    """(0-based page, share of the page height from the top) of the VBHN authentication title, from
+    the text layer; the last page that has it. None if no page has it or it cannot be placed."""
+    from pypdf import PdfReader
+
+    pages = PdfReader(pdf).pages
+    for k in range(len(pages) - 1, -1, -1):
+        frags: list[tuple[str, float]] = []
+
+        def visit(text, cm, tm, _font, _size, frags=frags):
+            if text.strip():
+                frags.append((unicodedata.normalize("NFC", text), tm[4] * cm[1] + tm[5] * cm[3] + cm[5]))
+
+        try:
+            full = unicodedata.normalize("NFC", pages[k].extract_text(visitor_text=visit) or "")
+        except Exception:  # noqa: BLE001 - an unreadable page has no block
+            continue
+        if not AUTH_RE.search(full):
+            continue
+        ys = [
+            y
+            for i, (t, y) in enumerate(frags)
+            if "XÁC" in t and AUTH_RE.search("".join(x for x, _ in frags[i : i + 8]))
+        ]
+        if not ys:
+            return None
+        box = pages[k].mediabox
+        return k, 1 - (min(ys) - float(box.bottom)) / float(box.height)
+    return None
+
+
+def accept6(text: str, q: str | None, vbhn_only: bool) -> tuple[str | None, tuple[int, int, int] | None]:
+    d = read_date2(text)
+    if q is None or d is None or not emblem_ok(text, d):
+        return None, d
+    cands = [n for n in read_numbers4(text) if checks_pass6(n, d)]
+    if vbhn_only:
+        cands = [n for n in cands if n.split("/")[-1].startswith("VBHN")]
+    hits = [n for n in cands if agree4(n, d, q)]
+    return (merge_d(hits[0], qwen_number(q)), d) if len(hits) == 1 else (None, d)
+
+
+def read_v6(text: str, q: str | None, atext: str | None, aq: str | None) -> tuple[str | None, tuple | None, str]:
+    """Page-1 header first; if it gives no accept, the VBHN authentication block. Returns (number,
+    date, where): where is "page1", "auth" or ""."""
+    n, d = accept6(text, q, vbhn_only=False)
+    if n:
+        return n, d, "page1"
+    if atext is not None and aq is not None:
+        n2, d2 = accept6(atext, aq, vbhn_only=True)
+        if n2:
+            return n2, d2, "auth"
+    return None, d, ""
+
+
 def seal_box(rgb: np.ndarray) -> tuple[int, int, int, int] | None:
     """Bounding box of the largest blob of red ink, grown to take in the signer's title."""
     red = red_mask(rgb[::4, ::4])
@@ -304,6 +384,22 @@ def prep(doc_id: int) -> dict:
     rec["head_red"] = dropout(str(out / "head.png"), str(out / "head_drop.png"))
     head = Image.open(out / "head.png")
     head.resize((1240, head.height * 1240 // head.width), Image.LANCZOS).save(out / "head_small.png")  # for Qwen
+    try:  # v6: the VBHN authentication block, if the text layer has one
+        loc = auth_locate(pdf)
+    except Exception:  # noqa: BLE001 - no readable text layer, no block
+        loc = None
+    rec["auth"] = loc is not None
+    if loc:
+        page = out / "auth_page.png"
+        subprocess.run([str(RENDER)], input=f"{pdf}\t{loc[0] + 1}\t{page}\n", text=True, capture_output=True)
+        if page.exists():
+            im = Image.open(page).convert("RGB")
+            top, bot = max(0.0, loc[1] - AUTH_TOP), min(1.0, loc[1] + AUTH_BOTTOM)
+            a = im.crop((0, int(im.height * top), im.width, int(im.height * bot)))
+            a.save(out / "auth.png")
+            a.resize((1240, a.height * 1240 // a.width), Image.LANCZOS).save(out / "auth_small.png")
+        else:
+            rec["auth"] = False
     last = np.asarray(Image.open(out / "plast.png").convert("RGB"))
     rec["last_red"] = float(red_mask(last[::4, ::4]).mean())
     box = seal_box(last)
@@ -342,6 +438,9 @@ def main() -> None:
     ap.add_argument("--confirm5", action="store_true", help="add the fifth-batch (v5) verdicts of PREREG.md")
     ap.add_argument("--to-adjudicate5", action="store_true", help="v5-accepted ids that differ from the listing")
     ap.add_argument("--spot5", action="store_true", help="the 100 v5-accepted ids to read blind (PREREG)")
+    ap.add_argument("--confirm6", action="store_true", help="add the sixth-batch (v6) verdicts of PREREG.md")
+    ap.add_argument("--to-adjudicate6", action="store_true", help="v6-accepted ids that differ from the listing")
+    ap.add_argument("--spot6", action="store_true", help="the 100 v6-accepted ids to read blind (PREREG)")
     args = ap.parse_args()
     listing = json.loads((PRIV / "docs.json").read_text(encoding="utf-8"))
     ids = sorted(int(p.stem) for p in (PRIV / "pdf").glob("*.pdf"))
@@ -356,6 +455,7 @@ def main() -> None:
         for r in recs:
             d = PRIV / "pages" / f"{r['id']:03d}"
             imgs += [d / "head.png", d / "head_drop.png"] + ([d / "seal.png", d / "seal_drop.png"] if r["seal"] else [])
+            imgs += [d / "auth.png"] if r.get("auth") else []
         run = subprocess.run(
             [str(VISION), "--jobs", "6"],
             input="".join(f"{p}\n" for p in imgs),
@@ -377,6 +477,10 @@ def main() -> None:
     if (PRIV / "qwen_full.jsonl").exists():  # same prompt on the full-resolution head.png, v4 rejections only
         with open(PRIV / "qwen_full.jsonl", encoding="utf-8") as fh:
             qfull = {j["path"]: j["text"] for j in map(json.loads, fh)}
+    qauth = {}
+    if (PRIV / "qwen_auth.jsonl").exists():  # same prompt on auth_small.png, the VBHN authentication block (v6)
+        with open(PRIV / "qwen_auth.jsonl", encoding="utf-8") as fh:
+            qauth = {j["path"]: j["text"] for j in map(json.loads, fh)}
     adj = (
         json.loads((PRIV / "adjudication.json").read_text(encoding="utf-8"))
         if (PRIV / "adjudication.json").exists()
@@ -444,6 +548,18 @@ def main() -> None:
             "ok_page": (n5, d5) == (pn, pd),
             "adjudicated": bool(page),
         }
+        at = ocr["V"].get(str(d / "auth.png")) if r.get("auth") else None
+        n6, d6, where = read_v6(text, q, at, qauth.get(str(d / "auth_small.png")))
+        row["v6"] = {
+            "num": n6,
+            "date": d6,
+            "where": where,
+            "auth": bool(r.get("auth")),
+            "auth_qwen": str(d / "auth_small.png") in qauth,
+            "ok_listing": (n6, d6) == (truth4(truth["number"]), td),
+            "ok_page": (n6, d6) == (pn, pd),
+            "adjudicated": bool(page),
+        }
         row["layer"] = {"num": r.get("layer_num"), "date": r.get("layer_date")}
         row["layer"]["num_ok"] = row["layer"]["num"] == tn
         row["layer"]["date_ok"] = tuple(row["layer"]["date"] or ()) == td
@@ -470,9 +586,18 @@ def main() -> None:
         agree = sorted(x["id"] for x in rows if x["v5"]["num"] and x["v5"]["ok_listing"])
         print(" ".join(map(str, random.Random(SPOT_SEED).sample(agree, min(SPOT_N, len(agree))))))
         return
+    if args.to_adjudicate6:  # v6 accepts that differ from the listing, ids only
+        print(" ".join(str(x["id"]) for x in rows if x["v6"]["num"] and not x["v6"]["ok_listing"]))
+        return
+    if args.spot6:  # PREREG "Sixth batch": 100 v6 accepts that agree with the listing, ids and where read
+        agree = sorted(x["id"] for x in rows if x["v6"]["num"] and x["v6"]["ok_listing"])
+        where = {x["id"]: x["v6"]["where"] for x in rows}
+        print(" ".join(f"{i}:{where[i]}" for i in random.Random(SPOT_SEED6).sample(agree, min(SPOT_N, len(agree)))))
+        return
     text = report(rows) + (confirm(rows) if args.confirm else []) + (confirm3(rows) if args.confirm3 else [])
     text += confirm4(rows) if args.confirm4 else []
     text += confirm5(rows) if args.confirm5 else []
+    text += confirm6(rows) if args.confirm6 else []
     print("\n".join(text))
     if args.md:
         Path(args.md).write_text("\n".join(text) + "\n", encoding="utf-8")
@@ -592,6 +717,7 @@ def confirm4(rows: list[dict]) -> list[str]:
 
 
 SPOT_SEED, SPOT_N = 20261127, 100
+SPOT_SEED6 = 20261128
 
 
 def confirm5(rows: list[dict]) -> list[str]:
@@ -638,6 +764,62 @@ def confirm5(rows: list[dict]) -> list[str]:
     out.append(
         f"- Against the listing as published: {sum(not x['v5']['ok_listing'] for x in acc)} wrong of {len(acc)}; "
         f"{sum(x['v5']['adjudicated'] for x in acc)} accepted documents were adjudicated."
+    )
+    return out
+
+
+def confirm6(rows: list[dict]) -> list[str]:
+    """Verdicts of PREREG.md, "Sixth batch (v6)", on this batch alone."""
+    missing = [x["id"] for x in rows if not x["v3"]["qwen"]]
+    missing += [x["id"] for x in rows if x["v6"]["auth"] and not x["v6"]["auth_qwen"]]
+    if missing:
+        raise SystemExit(f"no Qwen read for {len(missing)} crops (first: {missing[:5]}); run vlm_ocr.py first")
+    spot = PRIV / "spot_check.json"
+    if not spot.exists():
+        raise SystemExit("no spot_check.json: the blind spot check is part of the truth (PREREG)")
+    n_spot = sum(1 for k in json.loads(spot.read_text(encoding="utf-8")) if not k.startswith("_"))
+    n = len(rows)
+    out = ["", "## 10. Sixth batch: pre-registered verdicts for v6", ""]
+    out += [
+        'PREREG.md, "Sixth batch (v6)": v6 frozen at the commit that added that section, documents not seen',
+        "before. Truth is the page: the listing, except where a reader who saw only the page image",
+        "corrected it (`adjudication.json`): every accepted document that disagrees with the listing, and",
+        f"the hidden errors found by a blind read of {n_spot} random accepted documents that agree with it.",
+        "",
+    ]
+    for name, key in (("Primary, v6", "v6"), ("Report only, v5", "v5")):
+        a = [x[key] for x in rows if x[key]["num"]]
+        w = sum(not x["ok_page"] for x in a)
+        ub = cp_upper(w, len(a)) if a else 1.0
+        p = binom_cdf(w, len(a), ALPHA) if a else 1.0
+        verdict = "GO" if ub <= 0.03 else (f"KILL {key}" if ub > 0.05 else "ITERATE")
+        cert = len(a) >= 230 and p <= DELTA
+        cov = len(a) / n
+        out.append(
+            f"- {name}: {len(a)} of {n} accepted ({pct(cov)}, bar 70% → {'met' if cov >= 0.7 else 'missed'}), "
+            f"{w} wrong against the page, 95% upper bound {pct(ub)} → **{verdict}**; certificate at "
+            f"α = {pct(ALPHA)}, δ = {DELTA}: p = {p:.3f} → **{'certified' if cert else 'not certified'}**."
+        )
+    acc = [x for x in rows if x["v6"]["num"]]
+    for lab, g in (
+        ("scans", [x for x in rows if x["scan"]]),
+        ("PDFs with a text layer", [x for x in rows if not x["scan"]]),
+        ("VBHN (listing)", [x for x in rows if x["kind"] == "VBHN"]),
+        ("not VBHN (listing)", [x for x in rows if x["kind"] != "VBHN"]),
+    ):
+        ga = [x for x in g if x["v6"]["num"]]
+        out.append(
+            f"- v6 on {lab}: {len(ga)} of {len(g)} accepted ({pct(len(ga) / len(g)) if g else '—'}), "
+            f"{sum(not x['v6']['ok_page'] for x in ga)} wrong against the page."
+        )
+    au = [x for x in acc if x["v6"]["where"] == "auth"]
+    out.append(
+        f"- Accepted from the authentication block: {len(au)} (block found in {sum(x['v6']['auth'] for x in rows)} "
+        f"PDFs), {sum(not x['v6']['ok_page'] for x in au)} wrong against the page."
+    )
+    out.append(
+        f"- Against the listing as published: {sum(not x['v6']['ok_listing'] for x in acc)} wrong of {len(acc)}; "
+        f"{sum(x['v6']['adjudicated'] for x in acc)} accepted documents were adjudicated."
     )
     return out
 

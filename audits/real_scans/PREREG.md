@@ -201,3 +201,60 @@ same limit as batch 4.
    to about 3% of the unsampled agreeing documents could still hide one.
 4. **Report only.** v4 on the same documents; scans versus PDFs; errors against the listing as
    published; "?" fields and reader errors in the spot check. No full-resolution re-read this time.
+
+## Sixth batch (v6) (written 2026-11-27, before listing or downloading it)
+
+v5 passed risk on batch 5 (0 wrong in 328 accepted, upper bound 0.9%, certificate p = 0.037) but
+missed coverage (65.6% against 70%). The misses were mostly consolidated texts (VBHN): 81 of the
+500, and v5 accepted none. Two causes, both seen in batch 5 and therefore in-sample:
+1. In 2026 VBHN numbers dropped the year ("37/VBHN-BXD"; no year in 0 of 42 listed VBHN in batch
+   1, 48 of 86 in batch 4, 127 of 127 in batch 5). v3–v5 demanded a year for VBHN.
+2. A VBHN page 1 has no "Số:" line. The number and date are printed in the authentication block
+   ("XÁC THỰC VĂN BẢN HỢP NHẤT") at the end of the main text, laid out like a header.
+
+v6 (`read_v6`) is v5 with two changes:
+- `checks_pass6`: a VBHN number may have no year segment if its leading number has at most 4
+  digits (so "712026/VBHN", a slash read as "1", still fails). Nothing else changes.
+- If page 1 gives no accept, the authentication block is looked for in the PDF text layer
+  (`auth_locate`: the last page holding the phrase, and its height). That page is rendered and a
+  full-width band from 3% above to 8% below the phrase is cropped (`auth.png`, and `auth_small.png`
+  at 1240 px for Qwen). Vision and Qwen read it with the same prompt as the header, and the same
+  `accept` rule applies (date, emblem, format checks, exactly one candidate agreeing with Qwen,
+  `merge_d`), except that only a VBHN number is accepted from it. Scans have no text layer, so v6
+  never finds the block in a scan and abstains on a scanned VBHN with no number on page 1.
+
+In-sample (batches 1–5, 1,726 documents, all reads already made; truth = listing except
+`adjudication.json`): v6 accepts 1,362 (v5: 1,297), 0 wrong; every
+v5 accept is kept. By batch: 162, 165, 248, 408 and 379 of 193, 193, 340, 500 and 500 (v5: 162, 165,
+247, 395, 328). From the block: 6 in batch 4 and 51 in batch 5 (of 24 and 62 blocks found). All 553
+VBHN numbers in the five listings pass checks_pass6. The 57 block accepts were not read blind, so
+"0 wrong" for them is against the listing only. In batch 5 these numbers lift coverage from 65.6%
+to 75.8%, but on the data v6 was built on. v6 is frozen as of the commit that adds this section:
+`run_scans.py`, `issuer_codes.txt` (unchanged from v5), `header_prompt.txt`, `vlm_ocr.py`, the
+model and the 1240 px scale. Only input paths may change.
+
+**Data.** Pages 57 onward of the listing on vanban.chinhphu.vn as of 2026-11-27, read with the
+batch-5 lister (older than batch 5). Any document whose number is in the listings of batches 1–5
+is skipped. First PDF at most 5 MB, in listing order, until 500 PDFs are downloaded. These
+documents are older, so fewer VBHN may lack the year; that is part of what is tested.
+
+**Truth: the page, read blind, with no person involved.** As batch 5. All reads are by the agent
+that built v6; it sees an image and nothing else: no engine read, no listing value.
+- Every v6 accept that disagrees with the listing (`--to-adjudicate6`, ids only) is read from the
+  image the accept came from (the full header, or `auth.png` for an accept from the block) and
+  written to `adjudication.json`. If the image cannot be read with certainty, the listing stands.
+- A spot check of the accepts that agree with the listing: 100 ids drawn by `--spot6`
+  (`random.Random(20261128).sample`), each read from the 30–65% band of the header, or from
+  `auth.png` for an accept from the block, into `spot_check.json`. A mismatch is looked at again,
+  zoomed in, knowing only that there is a mismatch. A confirmed read goes into `adjudication.json`
+  and counts as an error; a withdrawn read is reported as a reader error. Hidden errors among the
+  unsampled agreeing accepts stay unseen; this is reported as a limit.
+
+1. **Primary.** v6, wrong against the page among accepted, with its 95% upper bound. GO if ≤ 3%;
+   KILL v6 if > 5%; ITERATE in between.
+2. **Coverage.** Accepted share ≥ 70%.
+3. **Certificate.** On this batch alone, never pooled. Binomial test at α = 1%, δ = 0.1
+   (n ≥ 230). Same claim as for batches 4 and 5 if it passes.
+4. **Report only.** v5 on the same documents; scans versus PDFs; VBHN versus the rest (by the
+   listing's type); accepts from the authentication block, with their errors; errors against the
+   listing as published; "?" fields and reader errors in the spot check.
