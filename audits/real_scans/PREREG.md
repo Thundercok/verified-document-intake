@@ -375,3 +375,85 @@ that built v8; it sees an image and nothing else: no engine read, no listing val
 4. **Report only.** v7 on the same documents; v7 accepts dropped by A and by B, with how many were
    wrong against the page; scans versus PDFs; VBHN versus the rest; accepts from the block, with
    their errors; errors against the listing as published; reader errors in the spot check.
+
+## Ninth batch (v9) (written 2026-11-27, before listing or downloading it)
+
+v8 on batch 8: 313 of 500 accepted (62.6%, bar 70% missed), 0 wrong against the page, upper bound
+1.0%, certificate p = 0.043, certified. Looked at after scoring, so in-sample: v8's rejections on
+page 1 over batches 1–8 (3,226 documents) are mostly documents with no date on page 1 (486), and
+among National Assembly documents all 111 laws and resolutions "…/QH15" have none: their date is in
+the closing sentence "… thông qua ngày 25 tháng 6 năm 2025" on the last page. Of the 160
+"NQ-UBTVQH" resolutions, 46 were lost because Vision and Qwen spelled the issuer part differently
+("NQ-UBTVQH1S", "NO-UBTVQHIS" from Vision); finding 14 put this on the issuer-code check, which was
+wrong: the two engines disagreed (`agree4`). Rule B dropped 5 correct accepts in batch 8 because
+"48/2025/QĐ-UBND" and "53/2025/QĐ-UBND" from different provinces shared one register key.
+
+v9 (`read_v9`, `accept9`, `merge9`, `register_drop9`) is v8 with three changes:
+- **L.** If page 1 gives no date, Vision's read of the last page (`plast.png`) gives it: the last
+  "thông qua ngày … tháng … năm …" sentence. Qwen reads `plast_small.png` (1240 px) with
+  `passed_prompt.txt`, and must give the same date (day and month may be swapped, as `agree4`). The
+  number comes from page 1 as before: exactly one candidate passing `checks_pass6` with that date
+  (so its year must be the date's year), agreeing with Qwen's header read. The e-signature emblem on
+  page 1 is checked with 0–45 days (`EMBLEM_DAYS_L`) instead of 0–14: on the 146 QH/UBTVQH
+  documents of batches 1–8 that print an emblem, the listing date to the emblem is 0–45 days but
+  for one (244). This window was set on batches 1–8.
+- **T.** Vision's candidate and Qwen's number are compared on the part after the last "/" under
+  OCR look-alikes (O Q → 0, I l | → 1, S → 5, Đ → D); everything before the last "/" must be
+  identical. Where the two differ in a "-" segment, the segment is taken from the engine whose
+  spelling is in `issuer_codes9.txt` (79 letter segments seen at least twice in the listings of
+  batches 1–8; typos seen once, such as "UBTVVQH15" and "QD", are left out) when the other's is not.
+  A Đ/D difference that the list does not settle keeps Vision's spelling, as `merge_d`. Anything
+  else abstains.
+- **B.** Rule B skips accepts whose part after the last "/" contains UBND or HĐND, or is a bare
+  National Assembly code such as "QH15": laws (93–99/2025/QH15) and resolutions
+  (205–207/2025/QH15) are numbered apart, and in-sample B dropped 7 correct rule-L accepts in
+  batches 7–8 for that reason. "UBTVQH" tails stay in B. Set after seeing those 7: in-sample.
+- Rule A and the authentication-block path are unchanged.
+
+In-sample (batches 1–8, reads already made; truth = listing except `adjudication.json`; the rule-L
+gains were never adjudicated, so their truth is the listing): IN_SAMPLE.
+- On the 137 last pages of QH/UBTVQH documents with no date on page 1: Vision finds the sentence on
+  98; its date equals the listing on 97 (the other: year 2023 for 2025). Qwen agrees with Vision on
+  97; on none do both agree on a date the listing does not have.
+- v8 → v9 accepted: batch 1 161 → 161, batch 2 162 → 165, batch 3 248 → 249, batch 4 397 → 418,
+  batch 5 323 → 336, batch 6 322 → 326, batch 7 347 → 371, batch 8 313 → 358 (71.6%). In all:
+  2,273 → 2,384; gains: L 76, T 19, the narrowed B 16; no v8 accept lost; 0 wrong against the page.
+- The 98 sentences give 76 accepts. The rest: Vision's page-1 candidate is not Qwen's number,
+  mostly a number cited in the preamble ("203/2025/QH15") (14); no candidate (5); rule A (2); the
+  emblem, 244 days (1).
+- **Coverage risk, stated before the run:** v9 is under 70% on batches 5 (67.2%) and 6 (65.2%). Its
+  gains depend on how many laws and UBTVQH resolutions the batch holds. Batch 9 is older (pages
+  146 onward, early 2025 and before); its mix is not known.
+
+v9 is frozen as of the commit that adds this section: `run_scans.py`, `issuer_codes9.txt`,
+`passed_prompt.txt`, `header_prompt.txt`, `vlm_ocr.py`, the model and the 1240 px scale. Only input
+paths may change.
+
+**Data.** Pages 146 onward of the listing on vanban.chinhphu.vn as of 2026-11-27, read with the
+batch-8 lister. Any document whose number is in the listings of batches 1–8 (downloaded or not) is
+skipped. First PDF at most 5 MB, in listing order, until 500 PDFs are downloaded. Qwen reads every
+`head_small.png` (`header_prompt.txt`), every `auth7_small.png`, and the `plast_small.png` of every
+document `--passed-paths` lists (page 1 has no date and Vision finds the sentence).
+
+**Truth: the page, read blind, with no person involved.** As batch 8. All reads are by the agent
+that built v9; it sees an image and nothing else: no engine read, no listing value.
+- Every v9 or v8 accept that disagrees with the listing (`--to-adjudicate9`) is read from the
+  image the accept came from (the full header; `auth7.png`; for rule L, the header for the number and
+  `plast.png` for the date) and written to `adjudication.json`. If the image cannot be read with
+  certainty, the listing stands.
+- Spot check (`--spot9`): every v9 accept from the block or from the last page that agrees with the
+  listing, and 100 v9 accepts from page 1 that agree with it, drawn by
+  `random.Random(20261201).sample`. Read as batch 8; rule-L accepts are read from the header (number)
+  and the last page (date). Into `spot_check.json`, with the negative control of batch 8 (the reads
+  moved to the wrong ids must be flagged). A mismatch is looked at again, zoomed in, knowing only
+  that there is a mismatch. A confirmed read goes into `adjudication.json` and counts as an error.
+
+1. **Primary.** v9, wrong against the page among accepted, with its 95% upper bound. GO if ≤ 3%;
+   KILL v9 if > 5%; ITERATE in between.
+2. **Coverage.** Accepted share ≥ 70%.
+3. **Certificate.** On this batch alone, never pooled. Binomial test at α = 1%, δ = 0.1
+   (n ≥ 230).
+4. **Report only.** v8 on the same documents; v9 gains over v8 and losses, with their errors;
+   accepts by rule L and from the block, with their errors; rule B drops under v8 and v9; scans
+   versus PDFs; VBHN, National Assembly documents, the rest; errors against the listing as
+   published; reader errors in the spot check.

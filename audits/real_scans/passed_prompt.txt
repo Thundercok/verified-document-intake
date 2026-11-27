@@ -1,0 +1,2 @@
+This is the last page of a Vietnamese law or resolution. Find the sentence that says it was passed: "... thông qua ngày .. tháng .. năm ....". Write exactly one line and nothing else: that date, as dd/mm/yyyy.
+Copy the digits exactly as written. If there is no such sentence on the page, write ?.

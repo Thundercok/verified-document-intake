@@ -203,7 +203,7 @@ EMBLEM_RE = re.compile(r"(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{4})\s+\d{1,2}:\d{2}")
 EMBLEM_DAYS = 14  # issue date to e-signature time; 0-14 days for 90% of the 469 dev pages that print it
 
 
-def emblem_ok(text: str, d: tuple[int, int, int]) -> bool:
+def emblem_ok(text: str, d: tuple[int, int, int], days: int = EMBLEM_DAYS) -> bool:
     """A second printed date on the same page: the e-signature emblem ("Thời gian ký: 22.09.2026
     13:57"). If it is there, the issue date must fall 0-14 days before it. Catches a day read short
     ("ngày21tháng" read as 2) that both engines agree on."""
@@ -212,7 +212,7 @@ def emblem_ok(text: str, d: tuple[int, int, int]) -> bool:
         gap = (min(sig) - date(d[2], d[1], d[0])).days if sig else None
     except ValueError:
         return True  # an unreadable emblem says nothing
-    return gap is None or 0 <= gap <= EMBLEM_DAYS
+    return gap is None or 0 <= gap <= days
 
 
 def read_v4(text: str, qtexts: list[str]) -> tuple[str | None, tuple[int, int, int] | None]:
@@ -445,6 +445,125 @@ def register_drop(accepts: list[tuple[int, str, tuple[int, int, int]]]) -> set[i
     return out
 
 
+# --- v9 (written 2026-11-27 after the eighth batch; developed on batches 1-8, 3,226 documents) ---
+# v8 was certified on batch 8 but accepted 62.6%. Three changes, each aimed at a measured loss:
+# L. Laws and National Assembly resolutions ("…/2025/QH15", "…/2026/UBTVQH16") print no date on
+#    page 1; it is in the closing sentence "… thông qua ngày 25 tháng 6 năm 2025" on the last page.
+#    When page 1 has no date, Vision's read of the last page gives the date (the last such sentence),
+#    Qwen reads the same page with passed_prompt.txt, and both must agree. The number still comes from
+#    page 1, and its year must equal the date's year (checks_pass6). In-sample, Vision alone found the
+#    sentence in 98 of 137 such documents; 97 matched the listing, the other had the year wrong
+#    (2023 for 2025), which the year check rejects. The e-signature emblem on page 1 is signed after
+#    the law is promulgated, not on the day it is passed: on the 146 such documents of batches 1-8 that
+#    print one, the listing date to the emblem is 0-45 days but for one at 244. Rule L checks the
+#    emblem with 0-45 days (EMBLEM_DAYS_L, set on batches 1-8) instead of 0-14.
+# T. Vision misreads letters in the issuer part ("NQ-UBTVQH1S", "NO-UBTVQHIS") where Qwen does not,
+#    and v8 then abstains. v9 compares the part after the last "/" under OCR look-alikes (O Q 0,
+#    I l | 1, S 5, Đ D). Where Vision and Qwen differ there, a segment is taken from the engine whose
+#    segment is in issuer_codes9.txt (segments seen at least twice in the listings of batches 1-8)
+#    when the other's is not; if that does not settle it, v9 abstains. Digits before the last "/"
+#    must be identical, as before.
+# B. Rule B grouped "48/2025/QĐ-UBND" and "53/2025/QĐ-UBND" as one register although they come from
+#    different provinces, and dropped 5 correct accepts in batch 8. A local-government tail (UBND,
+#    HĐND) names many registers, so rule B now skips it. So does "QH15" alone: laws (93-99/2025/QH15)
+#    and resolutions (205-207/2025/QH15) of the National Assembly are numbered apart, and rule L's
+#    accepts would otherwise lose 7 correct ones in batches 7-8 (in-sample).
+# Rule A is kept.
+CODES9 = {
+    x.strip()
+    for x in (Path(__file__).parent / "issuer_codes9.txt").read_text(encoding="utf-8").splitlines()
+    if x.strip() and not x.startswith("#")
+}
+CONF9 = str.maketrans({"Đ": "D", "Ð": "D", "đ": "d", "O": "0", "Q": "0", "I": "1", "l": "1", "|": "1", "S": "5"})
+EMBLEM_DAYS_L = 45
+PASSED_RE = re.compile(r"thông\s*qua\s*ngày\s*(\d{1,2})\s*tháng\s*(\d{1,2})\s*năm\s*(\d{4})", re.IGNORECASE)
+
+
+def merge9(vn: str, qn: str | None) -> str | None:
+    """Vision's candidate and Qwen's number, as one number, or None if they do not agree (rule T)."""
+    if qn is None or "/" not in vn or "/" not in qn:
+        return None
+    (vh, vt), (qh, qt) = vn.rsplit("/", 1), qn.rsplit("/", 1)
+    if vh != qh or vt.translate(CONF9) != qt.translate(CONF9):
+        return None
+    sv, sq = vt.split("-"), qt.split("-")
+    if len(sv) != len(sq):
+        return None
+    out = []
+    for v, q in zip(sv, sq, strict=True):
+        if v == q or (v in CODES9 and q not in CODES9):
+            out.append(v)
+        elif q in CODES9 and v not in CODES9:
+            out.append(q)
+        elif v.translate(FOLD) == q.translate(FOLD):
+            out.append(v)  # a Đ/D difference no code list settles: Vision's spelling, as merge_d
+        else:
+            return None
+    return f"{vh}/{'-'.join(out)}"
+
+
+def qwen_date(line: str | None) -> tuple[int, int, int] | None:
+    m = QDATE_RE.search(line or "")
+    return tuple(int(g) for g in m.groups()) if m else None  # type: ignore[return-value]
+
+
+def passed_date(text: str | None) -> tuple[int, int, int] | None:
+    """The date of the last "thông qua ngày … tháng … năm …" sentence in a page read."""
+    hits = PASSED_RE.findall(DOTS.sub("", unicodedata.normalize("NFC", text or "")))
+    return tuple(int(g) for g in hits[-1]) if hits else None  # type: ignore[return-value]
+
+
+def accept9(
+    text: str,
+    q: str | None,
+    vbhn_only: bool,
+    d: tuple[int, int, int] | None,
+    qd: tuple[int, int, int] | None,
+    days: int = EMBLEM_DAYS,
+) -> str | None:
+    """One accept: d is the date Vision read (page 1, the block, or the last page), qd Qwen's read of it."""
+    if q is None or d is None or not emblem_ok(text, d, days) or qd not in (d, (d[1], d[0], d[2])):
+        return None
+    cands = [n for n in read_numbers4(text) if checks_pass6(n, d)]
+    if len(cands) != 1:  # none, or more than one (rule A)
+        return None
+    if vbhn_only and not cands[0].split("/")[-1].startswith("VBHN"):
+        return None
+    return merge9(cands[0], qwen_number(q))
+
+
+def read_v9(
+    text: str, q: str | None, atext: str | None, aq: str | None, ptext: str | None, pq: str | None
+) -> tuple[str | None, tuple | None, str]:
+    """Page 1; else the VBHN block (v7 locator); else, when page 1 has no date, the last page's
+    closing sentence (rule L). ptext: Vision's read of the last page; pq: Qwen's (passed_prompt.txt).
+    Returns (number, date, where): where is "page1", "auth", "passed" or ""."""
+    qlines = [x.strip() for x in (q or "").splitlines() if x.strip()]
+    d = read_date2(text)
+    n = accept9(text, q, False, d, qwen_date(qlines[1] if len(qlines) > 1 else None))
+    if n:
+        return n, d, "page1"
+    if atext is not None and aq is not None:
+        alines = [x.strip() for x in aq.splitlines() if x.strip()]
+        d2 = read_date2(atext)
+        n2 = accept9(atext, aq, True, d2, qwen_date(alines[1] if len(alines) > 1 else None))
+        if n2:
+            return n2, d2, "auth"
+    if d is None and ptext is not None and pq is not None:
+        d3 = passed_date(ptext)
+        n3 = accept9(text, q, False, d3, qwen_date(pq), EMBLEM_DAYS_L)
+        if n3:
+            return n3, d3, "passed"
+    return None, d, ""
+
+
+def register_drop9(accepts: list[tuple[int, str, tuple[int, int, int]]]) -> set[int]:
+    """Rule B, skipping tails that name more than one register: local government ("QĐ-UBND" in many
+    provinces) and the National Assembly ("QH15" for both laws and resolutions)."""
+    many = re.compile(r"UBND|HĐND|QH\d+")
+    return register_drop([a for a in accepts if not many.search(a[1].split("/")[-1]) or "UBTVQH" in a[1]])
+
+
 def seal_box(rgb: np.ndarray) -> tuple[int, int, int, int] | None:
     """Bounding box of the largest blob of red ink, grown to take in the signer's title."""
     red = red_mask(rgb[::4, ::4])
@@ -515,7 +634,9 @@ def prep(doc_id: int) -> dict:
             a.resize((1240, a.height * 1240 // a.width), Image.LANCZOS).save(out / "auth7_small.png")
         else:
             rec["auth7"] = False
-    last = np.asarray(Image.open(out / "plast.png").convert("RGB"))
+    pl = Image.open(out / "plast.png")
+    pl.resize((1240, pl.height * 1240 // pl.width), Image.LANCZOS).save(out / "plast_small.png")  # v9, Qwen
+    last = np.asarray(pl.convert("RGB"))
     rec["last_red"] = float(red_mask(last[::4, ::4]).mean())
     box = seal_box(last)
     rec["seal"] = box is not None
@@ -562,6 +683,10 @@ def main() -> None:
     ap.add_argument("--confirm8", action="store_true", help="add the eighth-batch (v8) verdicts of PREREG.md")
     ap.add_argument("--to-adjudicate8", action="store_true", help="v8-accepted ids that differ from the listing")
     ap.add_argument("--spot8", action="store_true", help="the 100 v8-accepted ids to read blind (PREREG)")
+    ap.add_argument("--passed-paths", action="store_true", help="v9: last pages for Qwen with passed_prompt.txt")
+    ap.add_argument("--confirm9", action="store_true", help="add the ninth-batch (v9) verdicts of PREREG.md")
+    ap.add_argument("--to-adjudicate9", action="store_true", help="v9 or v8 accepts that differ from the listing")
+    ap.add_argument("--spot9", action="store_true", help="the v9-accepted ids to read blind (PREREG)")
     args = ap.parse_args()
     listing = json.loads((PRIV / "docs.json").read_text(encoding="utf-8"))
     ids = sorted(int(p.stem) for p in (PRIV / "pdf").glob("*.pdf"))
@@ -578,6 +703,7 @@ def main() -> None:
             imgs += [d / "head.png", d / "head_drop.png"] + ([d / "seal.png", d / "seal_drop.png"] if r["seal"] else [])
             imgs += [d / "auth.png"] if r.get("auth") else []
             imgs += [d / "auth7.png"] if r.get("auth7") else []
+            imgs += [d / "plast.png"]  # v9, rule L
         run = subprocess.run(
             [str(VISION), "--jobs", "6"],
             input="".join(f"{p}\n" for p in imgs),
@@ -607,6 +733,18 @@ def main() -> None:
     if (PRIV / "qwen_auth7.jsonl").exists():  # same prompt on auth7_small.png, the v7-located block
         with open(PRIV / "qwen_auth7.jsonl", encoding="utf-8") as fh:
             qauth7 = {j["path"]: j["text"] for j in map(json.loads, fh)}
+    qpassed = {}
+    if (PRIV / "qwen_passed.jsonl").exists():  # passed_prompt.txt on plast_small.png (v9, rule L)
+        with open(PRIV / "qwen_passed.jsonl", encoding="utf-8") as fh:
+            qpassed = {j["path"]: j["text"] for j in map(json.loads, fh)}
+    if args.passed_paths:  # page 1 gives no date and Vision finds the closing sentence on the last page
+        for r in recs:
+            d = PRIV / "pages" / f"{r['id']:03d}"
+            if read_date2(ocr["V"].get(str(d / "head.png"), "")) is None and passed_date(
+                ocr["V"].get(str(d / "plast.png"))
+            ):
+                print(d / "plast_small.png")
+        return
     adj = (
         json.loads((PRIV / "adjudication.json").read_text(encoding="utf-8"))
         if (PRIV / "adjudication.json").exists()
@@ -714,6 +852,22 @@ def main() -> None:
             "ok_page": (n8, d8) == (pn, pd),
             "adjudicated": bool(page),
         }
+        pt = ocr["V"].get(str(d / "plast.png"))
+        pq = qpassed.get(str(d / "plast_small.png"))
+        n9, d9, where9 = read_v9(text, q, at7, aq7, pt, pq)  # rule B (register_drop9) below
+        row["v9"] = {
+            "num": n9,
+            "date": d9,
+            "where": where9,
+            "register": False,
+            "auth": bool(r.get("auth7")),
+            "auth_qwen": aq7 is not None,
+            "passed": read_date2(text) is None and passed_date(pt) is not None,
+            "passed_qwen": pq is not None,
+            "ok_listing": (n9, d9) == (truth4(truth["number"]), td),
+            "ok_page": (n9, d9) == (pn, pd),
+            "adjudicated": bool(page),
+        }
         row["layer"] = {"num": r.get("layer_num"), "date": r.get("layer_date")}
         row["layer"]["num_ok"] = row["layer"]["num"] == tn
         row["layer"]["date_ok"] = tuple(row["layer"]["date"] or ()) == td
@@ -726,6 +880,10 @@ def main() -> None:
     for x in rows:
         if x["id"] in dropped:  # the read stays in "register_num" for the report; the document is not accepted
             x["v8"].update(num=None, register=True, register_num=x["v8"]["num"])
+    dropped9 = register_drop9([(x["id"], x["v9"]["num"], x["v9"]["date"]) for x in rows if x["v9"]["num"]])
+    for x in rows:
+        if x["id"] in dropped9:
+            x["v9"].update(num=None, register=True, register_num=x["v9"]["num"])
     (PRIV / "scan_rows.json").write_text(
         json.dumps(
             [{**{k if isinstance(k, str) else "_".join(k): v for k, v in x.items()}} for x in rows],
@@ -774,12 +932,24 @@ def main() -> None:
         pick = auth + random.Random(SPOT_SEED8).sample(page1, min(SPOT_N, len(page1)))
         print(" ".join(f"{i}:{where[i]}" for i in pick))
         return
+    if args.to_adjudicate9:  # v9 or v8 accepts that differ from the listing, ids only
+        print(" ".join(str(x["id"]) for x in rows if any(x[k]["num"] and not x[k]["ok_listing"] for k in ("v9", "v8"))))
+        return
+    if args.spot9:  # PREREG "Ninth batch": every agreeing accept from the block or the last page, 100 from page 1
+        agree = sorted(x["id"] for x in rows if x["v9"]["num"] and x["v9"]["ok_listing"])
+        where = {x["id"]: x["v9"]["where"] for x in rows}
+        rest = [i for i in agree if where[i] in ("auth", "passed")]
+        page1 = [i for i in agree if where[i] == "page1"]
+        pick = rest + random.Random(SPOT_SEED9).sample(page1, min(SPOT_N, len(page1)))
+        print(" ".join(f"{i}:{where[i]}" for i in pick))
+        return
     text = report(rows) + (confirm(rows) if args.confirm else []) + (confirm3(rows) if args.confirm3 else [])
     text += confirm4(rows) if args.confirm4 else []
     text += confirm5(rows) if args.confirm5 else []
     text += confirm6(rows) if args.confirm6 else []
     text += confirm7(rows) if args.confirm7 else []
     text += confirm8(rows) if args.confirm8 else []
+    text += confirm9(rows) if args.confirm9 else []
     print("\n".join(text))
     if args.md:
         Path(args.md).write_text("\n".join(text) + "\n", encoding="utf-8")
@@ -902,6 +1072,7 @@ SPOT_SEED, SPOT_N = 20261127, 100
 SPOT_SEED6 = 20261128
 SPOT_SEED7 = 20261129
 SPOT_SEED8 = 20261130
+SPOT_SEED9 = 20261201
 
 
 def confirm5(rows: list[dict]) -> list[str]:
@@ -1126,6 +1297,79 @@ def confirm8(rows: list[dict]) -> list[str]:
     out.append(
         f"- Against the listing as published: {sum(not x['v8']['ok_listing'] for x in acc)} wrong of {len(acc)}; "
         f"{sum(x['v8']['adjudicated'] for x in acc)} accepted documents were adjudicated."
+    )
+    return out
+
+
+def confirm9(rows: list[dict]) -> list[str]:
+    """Verdicts of PREREG.md, "Ninth batch (v9)", on this batch alone."""
+    missing = [x["id"] for x in rows if not x["v3"]["qwen"]]
+    missing += [x["id"] for x in rows if x["v9"]["auth"] and not x["v9"]["auth_qwen"]]
+    missing += [x["id"] for x in rows if x["v9"]["passed"] and not x["v9"]["passed_qwen"]]
+    if missing:
+        raise SystemExit(f"no Qwen read for {len(missing)} crops (first: {missing[:5]}); run vlm_ocr.py first")
+    spot = PRIV / "spot_check.json"
+    if not spot.exists():
+        raise SystemExit("no spot_check.json: the blind spot check is part of the truth (PREREG)")
+    n_spot = sum(1 for k in json.loads(spot.read_text(encoding="utf-8")) if not k.startswith("_"))
+    n = len(rows)
+    out = ["", "## 13. Ninth batch: pre-registered verdicts for v9", ""]
+    out += [
+        'PREREG.md, "Ninth batch (v9)": v9 frozen at the commit that added that section, documents not seen',
+        "before. Truth is the page: the listing, except where a reader who saw only the page image",
+        "corrected it (`adjudication.json`): every accepted document that disagrees with the listing, and",
+        f"the hidden errors found by a blind read of {n_spot} accepted documents that agree with it: every",
+        "one accepted from the authentication block or the last page, and 100 random ones from page 1.",
+        "",
+    ]
+    for name, key in (("Primary, v9", "v9"), ("Report only, v8", "v8")):
+        a = [x[key] for x in rows if x[key]["num"]]
+        w = sum(not x["ok_page"] for x in a)
+        ub = cp_upper(w, len(a)) if a else 1.0
+        p = binom_cdf(w, len(a), ALPHA) if a else 1.0
+        verdict = "GO" if ub <= 0.03 else (f"KILL {key}" if ub > 0.05 else "ITERATE")
+        cert = len(a) >= 230 and p <= DELTA
+        cov = len(a) / n
+        out.append(
+            f"- {name}: {len(a)} of {n} accepted ({pct(cov)}, bar 70% → {'met' if cov >= 0.7 else 'missed'}), "
+            f"{w} wrong against the page, 95% upper bound {pct(ub)} → **{verdict}**; certificate at "
+            f"α = {pct(ALPHA)}, δ = {DELTA}: p = {p:.3f} → **{'certified' if cert else 'not certified'}**."
+        )
+    acc = [x for x in rows if x["v9"]["num"]]
+    for lab, g in (
+        ("scans", [x for x in rows if x["scan"]]),
+        ("PDFs with a text layer", [x for x in rows if not x["scan"]]),
+        ("VBHN (listing)", [x for x in rows if x["kind"] == "VBHN"]),
+        ("laws and resolutions of the National Assembly (listing)", [x for x in rows if "QH" in x["kind"]]),
+        ("everything else (listing)", [x for x in rows if x["kind"] != "VBHN" and "QH" not in x["kind"]]),
+    ):
+        ga = [x for x in g if x["v9"]["num"]]
+        out.append(
+            f"- v9 on {lab}: {len(ga)} of {len(g)} accepted ({pct(len(ga) / len(g)) if g else '—'}), "
+            f"{sum(not x['v9']['ok_page'] for x in ga)} wrong against the page."
+        )
+    for lab, where in (("the authentication block", "auth"), ("the last page (rule L)", "passed")):
+        g = [x for x in acc if x["v9"]["where"] == where]
+        out.append(f"- Accepted from {lab}: {len(g)}, {sum(not x['v9']['ok_page'] for x in g)} wrong against the page.")
+    out.append(
+        f"- Last pages with the closing sentence where page 1 has no date: {sum(x['v9']['passed'] for x in rows)}."
+    )
+    gain = [x for x in acc if not x["v8"]["num"]]
+    lost = [x for x in rows if x["v8"]["num"] and not x["v9"]["num"]]
+    out.append(
+        f"- v9 accepts that v8 rejected: {len(gain)}, {sum(not x['v9']['ok_page'] for x in gain)} wrong against "
+        f"the page; v8 accepts that v9 rejects: {len(lost)}, {sum(not x['v8']['ok_page'] for x in lost)} wrong."
+    )
+    reg = [x for x in rows if x["v9"]["register"]]
+    regv8 = [x for x in rows if x["v8"]["register"]]
+    out.append(
+        f"- Dropped by rule B (ok_page is scored on the read before the drop): v9 {len(reg)}, of which "
+        f"{sum(not x['v9']['ok_page'] for x in reg)} wrong against the page; v8 {len(regv8)}, of which "
+        f"{sum(not x['v8']['ok_page'] for x in regv8)} wrong."
+    )
+    out.append(
+        f"- Against the listing as published: {sum(not x['v9']['ok_listing'] for x in acc)} wrong of {len(acc)}; "
+        f"{sum(x['v9']['adjudicated'] for x in acc)} accepted documents were adjudicated."
     )
     return out
 
