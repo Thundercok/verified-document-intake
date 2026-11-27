@@ -30,3 +30,5 @@ experiments/runs/*/raw_outputs.jsonl
 # Downloaded OCR models and generated pilot data
 data/tessdata/
 audits/ocr_pilot/work*/
+audits/cccd_qr/work/
+audits/real_scans/work/

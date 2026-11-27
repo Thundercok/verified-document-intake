@@ -25,6 +25,42 @@ Standard on-device OCR engines (Apple Vision, Tesseract `vie+eng`) expose token-
 
 ---
 
+## 2a. Scope after the real-handwriting audit (2026-11-25)
+
+`audits/real_handwriting` ran the pilot's engines and verifiers on 1,838 real handwritten Vietnamese
+addresses (Cinnamon AI set). The engines that worked on fonts fail on pen strokes:
+
+- Apple Vision gets 83.7% of the parsed address values wrong (39.9% on handwriting fonts).
+- Tesseract `vie` gets none right.
+- Qwen3.5-4B, on a 200-line sample, matches an exact card on 23.5% of lines, against a bar of 50%
+  set before the run.
+
+Raw confidence stays at 1.0 throughout, so H1 holds on real data.
+
+Decision, by the rule set before the Qwen run: the scope narrows to **printed and typed documents
+plus the CCCD QR code**. Handwritten fields are reported as a measured limit, not a target. RQ3
+(VLM escalation) stays open only for printed crops that the gate abstains on. The next unknown in
+the narrowed scope is real scans with real seals (the stamp results in `audits/ocr_pilot` are upper
+bounds).
+
+Both follow-ups ran the same day, with thresholds written first:
+
+- `audits/real_scans` (193 government documents). The number and issue date are filled in
+  after signing, by hand on scans and as an overlay on signed PDFs, so even "printed" documents
+  need handwritten digits read. Vision gets both right on 89.1% (bar 95%: ITERATE). Red dropout
+  removes real seals and costs nothing measurable. The one engine error that passes every format
+  check ("2223" read as "2023") is exactly what only an exact side A can catch.
+- `audits/cccd_qr` (synthetic payloads only). 2,526 decodes, no silent error, Vietnamese intact:
+  the QR code holds up as the exact side A, as an upper bound until real cards are tested with
+  consent.
+
+The number and date then went through two more pre-registered batches. Parser v2 failed on
+unseen documents (upper bound 5.4%, KILL). v3, which also requires Qwen3.5-4B to agree with
+Vision, passed on 340 unseen documents (264 accepted, upper bound 2.9% against a 3% bar), and
+its three disagreements with the listing were all faults in the listing. Two-engine agreement
+is therefore the working gate for printed headers; the open question is an exact side A, since
+the publication listing is wrong about 1% of the time.
+
 ## 3. Evaluation Protocol
 
 1. **Benchmark Construction (Privacy-Safe):**

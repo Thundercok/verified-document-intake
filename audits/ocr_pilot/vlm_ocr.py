@@ -5,6 +5,7 @@ conf_min is the lowest token probability in the answer, conf_mean the geometric 
 records match vision_ocr.swift.
 
 Usage: uv run --group vlm python audits/ocr_pilot/vlm_ocr.py paths.txt out.jsonl [--limit N]
+       [--prompt-file prompt.txt] [--max-tokens 96]
 Resumable: paths already in out.jsonl are skipped.
 """
 
@@ -27,8 +28,8 @@ PROMPT = (
 )
 
 
-def recognize(model, processor, config, path: str, max_tokens: int = 96) -> dict:
-    prompt = apply_chat_template(processor, config, PROMPT, num_images=1, enable_thinking=False)
+def recognize(model, processor, config, path: str, max_tokens: int = 96, instruction: str = PROMPT) -> dict:
+    prompt = apply_chat_template(processor, config, instruction, num_images=1, enable_thinking=False)
     text, lps = "", []
     for r in stream_generate(model, processor, prompt, image=[path], max_tokens=max_tokens, temperature=0.0):
         text += r.text
@@ -52,6 +53,8 @@ def main() -> None:
     ap.add_argument("paths")
     ap.add_argument("out")
     ap.add_argument("--limit", type=int)
+    ap.add_argument("--prompt-file", help="instruction to use instead of the line-transcription prompt")
+    ap.add_argument("--max-tokens", type=int, default=96)
     args = ap.parse_args()
     with open(args.paths, encoding="utf-8") as fh:
         paths = [line.strip() for line in fh if line.strip()][: args.limit]
@@ -60,12 +63,16 @@ def main() -> None:
         with open(args.out, encoding="utf-8") as fh:
             done = {json.loads(line)["path"] for line in fh if line.strip()}
     todo = [p for p in paths if p not in done]
+    instruction = Path(args.prompt_file).read_text(encoding="utf-8").strip() if args.prompt_file else PROMPT
     model, processor = load(MODEL)
     config = model.config
     t0 = time.perf_counter()
     with open(args.out, "a", encoding="utf-8") as out:
         for i, path in enumerate(todo, 1):
-            out.write(json.dumps(recognize(model, processor, config, path), ensure_ascii=False) + "\n")
+            out.write(
+                json.dumps(recognize(model, processor, config, path, args.max_tokens, instruction), ensure_ascii=False)
+                + "\n"
+            )
             out.flush()
             if i % 50 == 0:
                 rate = (time.perf_counter() - t0) / i

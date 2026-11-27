@@ -4,6 +4,36 @@ Research and engineering repository for **deterministic PDF/OCR intake, field-le
 
 ---
 
+## 0. Status: what does not work yet
+
+Updated after every audit run. Bad numbers go here first. Last update: 2026-11-27.
+
+| What | Measured | Bar (set before the run) | Verdict | Source |
+|---|---|---|---|---|
+| Real handwritten addresses, Apple Vision | 83.7% of parsed values wrong (1,838 lines) | — | Out of scope | `audits/real_handwriting` |
+| Real handwritten addresses, Tesseract `vie` | 100% wrong | — | Out of scope | `audits/real_handwriting` |
+| Real handwritten addresses, Qwen3.5-4B | 23.5% match an exact card (200 lines), 5.1 s per line | ≥ 50% | Missed | `audits/real_handwriting` |
+| Raw engine confidence (H1) | Vision gives 1.0 to 99.3% of real lines, right or wrong | — | H1 holds | `audits/real_handwriting` |
+| Number + date on real government documents, Vision | Batch 1: number 94.8%, date 93.8%, both 89.1% (193 docs). Batch 2: 89.1%, 92.7%, both 85.5%. Batch 3: 92.1%, 92.6%, both 87.6% (340 docs). Batch 4: 91.8%, 90.0%, both 84.4% (500 docs; scans 81.1%). Batch 5: **77.0%, 77.8%**, both 72.2% (500 docs; scans 87.9%, 89.0%; 81 consolidated texts have no number on page 1). Batch 6: **73.6%, 75.0%**, both 70.8% (500 docs; scans 91.2%, 92.8%; 107 consolidated texts) | ≥ 95% each | RETHINK on batches 5 and 6 (ITERATE four times before) | `audits/real_scans` |
+| Same, Tesseract `vie` | Both right on 38.3% | — | Not usable alone | `audits/real_scans` |
+| Wrong values that pass the format checks | Batch 1: 7 of 179 (upper bound 7.2%). Batch 2: 13 of 178 (upper bound 11.4%). Batch 3: 25 of 323 (upper bound 10.6%). Batch 4: 15 of 423 (upper bound 5.4%). Batch 5: **78 of 439 (upper bound 21.0%)**. Batch 6: **116 of 470 (upper bound 28.2%)**. Mostly title dates in consolidated texts | — | Format checks are not enough | `audits/real_scans` |
+| Stricter parser v2 on batch 2 | 4 wrong of 168 accepted, upper bound 5.4% (batch 1 post hoc: 1 of 168 did not replicate) | upper bound ≤ 3% GO, > 5% KILL | **KILL** | `audits/real_scans` |
+| v3: year rule + Qwen must agree with Vision (third batch, 340 unseen docs) | 3 wrong of 264 accepted, upper bound **2.9%** (bar 3%, margin 0.1 points); coverage 77.6%; Qwen rejects 30 correct Vision reads | upper bound ≤ 3% GO, > 5% KILL; coverage ≥ 70% | GO, narrowly | `audits/real_scans` |
+| v4 (all of Vision's possible readings + Qwen + e-signature date), fourth batch, 500 unseen docs, truth = page (blind adjudication) | 395 accepted (79.0%), **1 wrong**, upper bound 1.2%. The error: "QĐ" output as "QD" (Vision dropped the stroke, the Đ/D tolerance let it agree with Qwen). Scans only 72.4% accepted (PDFs 91.0%). Adjudicator = the agent that built v4, not an independent person | upper bound ≤ 3% GO, > 5% KILL; coverage ≥ 70% | GO | `audits/real_scans` |
+| v5 (v4 + keep Đ by code list), fifth batch, 500 unseen docs, no person involved | 328 accepted (**65.6%, coverage bar missed**), 0 wrong, upper bound 0.9%. v5 = v4 on all 500: the Đ rule never fired, so it is still untested out of sample. 81 consolidated texts (VBHN) have no number on page 1; v5 abstains on all. Without them 78.3% (post hoc, does not count). Text-layer PDFs 45.1% accepted | upper bound ≤ 3% GO, > 5% KILL; coverage ≥ 70% | GO on risk, **coverage missed** | `audits/real_scans` |
+| v6 (v5 + VBHN number without year + number read from the VBHN authentication block), sixth batch, 500 unseen docs, no person involved | 355 accepted (**71.0%: bar met by 1 point**; 95% interval 66.9–74.8%, so the next batch can miss), 0 wrong, upper bound 0.8%. All 31 extra accepts come from the block; the year rule added none. **Consolidated texts: 31 of 107 accepted (29.0%)**; block not found in 59 text-layer VBHN (21 of them hold the phrase in another layout, seen post hoc), 9 VBHN are scans with no path. Text-layer PDFs 46.5%. Reader = the agent that built v6 | upper bound ≤ 3% GO, > 5% KILL; coverage ≥ 70% | GO, coverage narrowly | `audits/real_scans` |
+| Two engines making the same error | "2223"→"2023" (Vision and full-resolution Qwen), "142"→"1H2", "ngày21" → day 2 (both); batch 4: "QĐ" → "QD" let through by the Đ/D tolerance: agreement is not independence | — | Known limit | `audits/real_scans` |
+| The listing as ground truth | All 3 v3 "errors" are listing faults (wrong PDF, a date that differs from the page, a Cyrillic letter): 3 of 264 accepted (1.1%). Found after scoring. Batch 4: 1 more (listing 21/08, page 11/08) among 409 report-only accepts; 2 of 100 spot-checked entries carry a Cyrillic "Р". Batch 5: 1 of 328 accepts (listing "QD-UBND", page "QĐ-UBND"). Batch 6: 0 of 355 | — | Side A is not exact | `audits/real_scans` |
+| Red dropout, cost on page 1 | Batch 1: 0 points. Batch 2: −1.6. Batch 3: −1.4. Batch 4: +0.4. Batch 5: −0.4. Batch 6: −0.6 | ≤ 1 GO, > 2 KILL | Mixed: GO on 4 of 6 batches | `audits/real_scans` |
+| PDF text layer for number and date | Blank in 62% of signed PDFs (filled in after signing); batch 3: blank in 69%, and 1 wrong (the parser cut "VPCP-V.I"); batch 4: no number and date in 57%, 2 wrong; batch 5: both found in only 6.9% (0 wrong); batch 6: 0.8% | — | OCR still needed | `audits/real_scans` |
+| Certified risk ≤ 1% | v4 on batch 4 (pre-registered): 395 accepted, 1 wrong, p = 0.094, **narrowly** (one error needs ≥ 388 accepted). Only central-government documents on vanban.chinhphu.vn, 06–08/2026; truth from the listing plus 2 adjudicated pages. Blind spot check (pre-registered): 100 random agreeing docs read from the page, 0 hidden errors, which cannot rule out up to 3.0% hidden. Same agent as reader. v5 on batch 5 (pre-registered, no person involved): 328 accepted, 0 wrong, p = 0.037; spot check 0 of 100 hidden (up to 3.0% possible); 6 of 500 are provincial. v6 on batch 6 (pre-registered, no person involved): 355 accepted, 0 wrong, p = 0.028; spot check 0 of 100 hidden (up to 3.0% possible). Not commune paperwork, not phone photos, not CCCD | α = 1%, δ = 0.1 | Certified on 3 batches, narrow scope | `audits/real_scans` |
+| CCCD QR silent errors | 0 of 2,526 decodes, but **synthetic codes only**; decode rate 69.8% under blur | 0 errors | GO (upper bound) | `audits/cccd_qr` |
+
+Untested: real CCCD cards, phone photos of real documents, commune-level paperwork, the signer's
+name under a seal.
+
+---
+
 ## 1. Problem Formulation
 
 Given a document page $D$ (digital PDF, scanned raster, or photograph) containing a set of target fields $F = \{f_1, \dots, f_k\}$ (e.g., citizen ID numbers, dates, names, structured clauses), an intake system produces for each field $f_i$:
@@ -30,6 +60,7 @@ In administrative digitization, **silent errors on identity fields are unaccepta
 
 ```text
 verified-document-intake/
+├── audits/                 # Pre-registered experiments: code + aggregate results (data stays in data/private/)
 ├── docs/
 │   ├── RESEARCH_PLAN.md    # Hypotheses, degradation regimes, Risk–Coverage protocol
 │   └── GUIDE.md            # Integration guide (RAT & digitization clients), privacy rules
