@@ -389,6 +389,62 @@ def read_v6(text: str, q: str | None, atext: str | None, aq: str | None) -> tupl
     return None, d, ""
 
 
+# --- v8 (written 2026-11-27 after the seventh batch; developed on batches 1-7, 2,726 documents) ---
+# Batch 7's two errors were handwritten numbers that Vision and Qwen read the same wrong way.
+# A. Vision read "2491QĐ-TTg" with no slash, which gives two candidates: 2491, and 249 with the slash
+#    read as "1". Qwen, looking at the same unclear pixels, said 249, and v7 took it. When more than
+#    one candidate passes the checks, Qwen is not an independent tie-breaker, so v8 abstains.
+# B. "2615" was read as 2645 by both. Numbers in one register rise with the date. Within a batch the
+#    accepts are grouped by register (the part after the number, the number of "/" segments, and the
+#    year of the date); two conflict when the higher number carries the earlier date. The accepts in
+#    the most conflicts are dropped (all of them on a tie, so nothing depends on order) until none
+#    conflict. B uses only the batch's own reads; with few documents from one register it does nothing.
+# In-sample on batches 1-7 (v7: 2,114 accepts, 2 wrong): A and B drop both errors and 18 correct.
+
+
+def accept8(text: str, q: str | None, vbhn_only: bool) -> tuple[str | None, tuple[int, int, int] | None]:
+    """accept6, abstaining when more than one candidate passes the checks (rule A)."""
+    d = read_date2(text)
+    if q is None or d is None or not emblem_ok(text, d):
+        return None, d
+    cands = [n for n in read_numbers4(text) if checks_pass6(n, d)]
+    if len(cands) > 1:
+        return None, d
+    return accept6(text, q, vbhn_only)
+
+
+def read_v8(text: str, q: str | None, atext: str | None, aq: str | None) -> tuple[str | None, tuple | None, str]:
+    """read_v6 with accept8. Rule B is applied afterwards, over the batch (register_drop)."""
+    n, d = accept8(text, q, vbhn_only=False)
+    if n:
+        return n, d, "page1"
+    if atext is not None and aq is not None:
+        n2, d2 = accept8(atext, aq, vbhn_only=True)
+        if n2:
+            return n2, d2, "auth"
+    return None, d, ""
+
+
+def register_drop(accepts: list[tuple[int, str, tuple[int, int, int]]]) -> set[int]:
+    """Rule B. accepts: (id, number, (d, m, y)). Returns the ids to drop."""
+    groups: dict[tuple, list[tuple[int, int, date]]] = {}
+    for i, num, (dd, mm, yy) in accepts:
+        parts = num.split("/")
+        if parts[0].isdigit():
+            groups.setdefault((parts[-1], len(parts), yy), []).append((i, int(parts[0]), date(yy, mm, dd)))
+    out: set[int] = set()
+    for xs in groups.values():
+        while True:
+            c = {a[0]: sum((a[1] < b[1] and a[2] > b[2]) or (b[1] < a[1] and b[2] > a[2]) for b in xs) for a in xs}
+            top = max(c.values(), default=0)
+            if top == 0:
+                break
+            worst = {i for i, k in c.items() if k == top}
+            out |= worst
+            xs = [x for x in xs if x[0] not in worst]
+    return out
+
+
 def seal_box(rgb: np.ndarray) -> tuple[int, int, int, int] | None:
     """Bounding box of the largest blob of red ink, grown to take in the signer's title."""
     red = red_mask(rgb[::4, ::4])
@@ -503,6 +559,9 @@ def main() -> None:
     ap.add_argument("--confirm7", action="store_true", help="add the seventh-batch (v7) verdicts of PREREG.md")
     ap.add_argument("--to-adjudicate7", action="store_true", help="v7-accepted ids that differ from the listing")
     ap.add_argument("--spot7", action="store_true", help="the 100 v7-accepted ids to read blind (PREREG)")
+    ap.add_argument("--confirm8", action="store_true", help="add the eighth-batch (v8) verdicts of PREREG.md")
+    ap.add_argument("--to-adjudicate8", action="store_true", help="v8-accepted ids that differ from the listing")
+    ap.add_argument("--spot8", action="store_true", help="the 100 v8-accepted ids to read blind (PREREG)")
     args = ap.parse_args()
     listing = json.loads((PRIV / "docs.json").read_text(encoding="utf-8"))
     ids = sorted(int(p.stem) for p in (PRIV / "pdf").glob("*.pdf"))
@@ -643,6 +702,18 @@ def main() -> None:
             "ok_page": (n7, d7) == (pn, pd),
             "adjudicated": bool(page),
         }
+        n8, d8, where8 = read_v8(text, q, at7, aq7)  # rule B below, once every document is read
+        row["v8"] = {
+            "num": n8,
+            "date": d8,
+            "where": where8,
+            "register": False,
+            "auth": bool(r.get("auth7")),
+            "auth_qwen": aq7 is not None,
+            "ok_listing": (n8, d8) == (truth4(truth["number"]), td),
+            "ok_page": (n8, d8) == (pn, pd),
+            "adjudicated": bool(page),
+        }
         row["layer"] = {"num": r.get("layer_num"), "date": r.get("layer_date")}
         row["layer"]["num_ok"] = row["layer"]["num"] == tn
         row["layer"]["date_ok"] = tuple(row["layer"]["date"] or ()) == td
@@ -651,6 +722,10 @@ def main() -> None:
                 v: has_title(ocr["V"].get(str(d / f"seal{s}.png"), "")) for v, s in (("raw", ""), ("drop", "_drop"))
             }
         rows.append(row)
+    dropped = register_drop([(x["id"], x["v8"]["num"], x["v8"]["date"]) for x in rows if x["v8"]["num"]])
+    for x in rows:
+        if x["id"] in dropped:  # the read stays in "register_num" for the report; the document is not accepted
+            x["v8"].update(num=None, register=True, register_num=x["v8"]["num"])
     (PRIV / "scan_rows.json").write_text(
         json.dumps(
             [{**{k if isinstance(k, str) else "_".join(k): v for k, v in x.items()}} for x in rows],
@@ -688,11 +763,23 @@ def main() -> None:
         pick = auth + random.Random(SPOT_SEED7).sample(page1, min(SPOT_N, len(page1)))
         print(" ".join(f"{i}:{where[i]}" for i in pick))
         return
+    if args.to_adjudicate8:  # v8 accepts that differ from the listing, ids only
+        print(" ".join(str(x["id"]) for x in rows if x["v8"]["num"] and not x["v8"]["ok_listing"]))
+        return
+    if args.spot8:  # PREREG "Eighth batch": every agreeing accept from the block, and 100 random from page 1
+        agree = sorted(x["id"] for x in rows if x["v8"]["num"] and x["v8"]["ok_listing"])
+        where = {x["id"]: x["v8"]["where"] for x in rows}
+        auth = [i for i in agree if where[i] == "auth"]
+        page1 = [i for i in agree if where[i] == "page1"]
+        pick = auth + random.Random(SPOT_SEED8).sample(page1, min(SPOT_N, len(page1)))
+        print(" ".join(f"{i}:{where[i]}" for i in pick))
+        return
     text = report(rows) + (confirm(rows) if args.confirm else []) + (confirm3(rows) if args.confirm3 else [])
     text += confirm4(rows) if args.confirm4 else []
     text += confirm5(rows) if args.confirm5 else []
     text += confirm6(rows) if args.confirm6 else []
     text += confirm7(rows) if args.confirm7 else []
+    text += confirm8(rows) if args.confirm8 else []
     print("\n".join(text))
     if args.md:
         Path(args.md).write_text("\n".join(text) + "\n", encoding="utf-8")
@@ -814,6 +901,7 @@ def confirm4(rows: list[dict]) -> list[str]:
 SPOT_SEED, SPOT_N = 20261127, 100
 SPOT_SEED6 = 20261128
 SPOT_SEED7 = 20261129
+SPOT_SEED8 = 20261130
 
 
 def confirm5(rows: list[dict]) -> list[str]:
@@ -973,6 +1061,71 @@ def confirm7(rows: list[dict]) -> list[str]:
     out.append(
         f"- Against the listing as published: {sum(not x['v7']['ok_listing'] for x in acc)} wrong of {len(acc)}; "
         f"{sum(x['v7']['adjudicated'] for x in acc)} accepted documents were adjudicated."
+    )
+    return out
+
+
+def confirm8(rows: list[dict]) -> list[str]:
+    """Verdicts of PREREG.md, "Eighth batch (v8)", on this batch alone."""
+    missing = [x["id"] for x in rows if not x["v3"]["qwen"]]
+    missing += [x["id"] for x in rows if x["v8"]["auth"] and not x["v8"]["auth_qwen"]]
+    if missing:
+        raise SystemExit(f"no Qwen read for {len(missing)} crops (first: {missing[:5]}); run vlm_ocr.py first")
+    spot = PRIV / "spot_check.json"
+    if not spot.exists():
+        raise SystemExit("no spot_check.json: the blind spot check is part of the truth (PREREG)")
+    n_spot = sum(1 for k in json.loads(spot.read_text(encoding="utf-8")) if not k.startswith("_"))
+    n = len(rows)
+    out = ["", "## 12. Eighth batch: pre-registered verdicts for v8", ""]
+    out += [
+        'PREREG.md, "Eighth batch (v8)": v8 frozen at the commit that added that section, documents not seen',
+        "before. Truth is the page: the listing, except where a reader who saw only the page image",
+        "corrected it (`adjudication.json`): every accepted document that disagrees with the listing, and",
+        f"the hidden errors found by a blind read of {n_spot} accepted documents that agree with it: every",
+        "one accepted from the authentication block, and 100 random ones accepted from page 1.",
+        "",
+    ]
+    for name, key in (("Primary, v8", "v8"), ("Report only, v7", "v7")):
+        a = [x[key] for x in rows if x[key]["num"]]
+        w = sum(not x["ok_page"] for x in a)
+        ub = cp_upper(w, len(a)) if a else 1.0
+        p = binom_cdf(w, len(a), ALPHA) if a else 1.0
+        verdict = "GO" if ub <= 0.03 else (f"KILL {key}" if ub > 0.05 else "ITERATE")
+        cert = len(a) >= 230 and p <= DELTA
+        cov = len(a) / n
+        out.append(
+            f"- {name}: {len(a)} of {n} accepted ({pct(cov)}, bar 70% → {'met' if cov >= 0.7 else 'missed'}), "
+            f"{w} wrong against the page, 95% upper bound {pct(ub)} → **{verdict}**; certificate at "
+            f"α = {pct(ALPHA)}, δ = {DELTA}: p = {p:.3f} → **{'certified' if cert else 'not certified'}**."
+        )
+    acc = [x for x in rows if x["v8"]["num"]]
+    for lab, g in (
+        ("scans", [x for x in rows if x["scan"]]),
+        ("PDFs with a text layer", [x for x in rows if not x["scan"]]),
+        ("VBHN (listing)", [x for x in rows if x["kind"] == "VBHN"]),
+        ("not VBHN (listing)", [x for x in rows if x["kind"] != "VBHN"]),
+    ):
+        ga = [x for x in g if x["v8"]["num"]]
+        out.append(
+            f"- v8 on {lab}: {len(ga)} of {len(g)} accepted ({pct(len(ga) / len(g)) if g else '—'}), "
+            f"{sum(not x['v8']['ok_page'] for x in ga)} wrong against the page."
+        )
+    lost = [x for x in rows if x["v7"]["num"] and not x["v8"]["num"]]
+    reg = [x for x in lost if x["v8"]["register"]]
+    amb = [x for x in lost if not x["v8"]["register"]]
+    for lab, g in (("rule A (more than one candidate)", amb), ("rule B (register order)", reg)):
+        out.append(
+            f"- v7 accepts dropped by {lab}: {len(g)}, of which {sum(not x['v7']['ok_page'] for x in g)} "
+            "wrong against the page."
+        )
+    au = [x for x in acc if x["v8"]["where"] == "auth"]
+    out.append(
+        f"- Accepted from the authentication block: {len(au)} (block found in {sum(x['v8']['auth'] for x in rows)} "
+        f"PDFs), {sum(not x['v8']['ok_page'] for x in au)} wrong against the page."
+    )
+    out.append(
+        f"- Against the listing as published: {sum(not x['v8']['ok_listing'] for x in acc)} wrong of {len(acc)}; "
+        f"{sum(x['v8']['adjudicated'] for x in acc)} accepted documents were adjudicated."
     )
     return out
 

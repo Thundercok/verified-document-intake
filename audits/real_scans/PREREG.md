@@ -315,3 +315,63 @@ listing value.
 4. **Report only.** v6 and v5 on the same documents; scans versus PDFs; VBHN versus the rest (by
    the listing's type); accepts from the block, with their errors; errors against the listing as
    published; "?" fields and reader errors in the spot check.
+
+## Eighth batch (v8) (written 2026-11-27, before listing or downloading it)
+
+v7 on batch 7: 350 of 500 accepted (70.0%, exactly at the bar), 2 wrong against the page, upper
+bound 1.8%, certificate p = 0.319, not certified. Both errors were handwritten numbers on page 1
+that Vision and Qwen read the same wrong way. Looked at after scoring, so in-sample:
+- id 366: Vision read "2491QĐ-TTg" with no slash. `read_numbers4` turns that into two candidates
+  that both pass the checks, 2491 and 249 (slash read as "1"). Qwen said 249; v7 took it.
+- id 192: "2615/QĐ-TTg", read 2645 by both. On the same day the same register issued 2622 and
+  2623; 2634 is dated three days later. The number does not fit the register's order.
+
+v8 (`read_v8`, `register_drop`) is v7 with two abstentions:
+- **A.** If more than one candidate passes the checks, abstain (on page 1 and in the block). Qwen
+  sees the same pixels Vision found unclear, so it is not an independent tie-breaker.
+- **B.** Within the batch, accepts are grouped by register (the part after the number, the number
+  of "/" segments, the year of the date). Two accepts conflict when the higher number carries the
+  earlier date. The accepts in the most conflicts are dropped, all of them on a tie, until none
+  conflict. B uses only the batch's own reads, never the listing. With few documents from one
+  register it does nothing; on a single document it does nothing.
+
+In-sample (batches 1–7, 2,726 documents, reads already made; truth = listing except
+`adjudication.json`; B's rule shape and the register key were chosen after seeing the two errors,
+so this is tuned on n = 2): IN_SAMPLE.
+- v7 → v8 accepted: batch 1 162 → 161, batch 2 165 → 162, batch 3 248 → 248, batch 4 409 → 404,
+  batch 5 384 → 378, batch 6 396 → 394, batch 7 350 → 347. In all: 2,114 → 2,094; both errors
+  dropped, 18 correct accepts lost (A: 4 correct and id 366; B: 14 correct and id 192). 0 wrong left.
+- Keying registers without the "/" count (so "48/2025/QĐ-TTg" and "2336/QĐ-TTg" share one) put
+  614 listing truths in conflicting pairs; with it, 53. Real registers are not strictly in order.
+- **Coverage risk, stated before the run:** v8 on batch 7 is 69.4%, under the bar. v8 trades about
+  one point of coverage for the two errors. If batch 8 is like batch 7, coverage can miss.
+
+v8 is frozen as of the commit that adds this section: `run_scans.py`, `issuer_codes.txt`
+(unchanged), `header_prompt.txt`, `vlm_ocr.py`, the model and the 1240 px scale. Only input paths
+may change.
+
+**Data.** Pages 111 onward of the listing on vanban.chinhphu.vn as of 2026-11-27, read with the
+batch-7 lister (older than batch 7). Any document whose number is in the listings of batches 1–7
+(downloaded or not) is skipped. First PDF at most 5 MB, in listing order, until 500 PDFs are
+downloaded.
+
+**Truth: the page, read blind, with no person involved.** As batch 7. All reads are by the agent
+that built v8; it sees an image and nothing else: no engine read, no listing value.
+- Every **v7** accept that disagrees with the listing (`--to-adjudicate7`; v8's accepts are a
+  subset of v7's) is read from the image the accept came from (the full header, or `auth7.png`) and
+  written to `adjudication.json`. If the image cannot be read with certainty, the listing stands.
+- Spot check (`--spot8`): every v8 accept from the block that agrees with the listing, read from
+  `auth7.png`, and 100 v8 accepts from page 1 that agree with it, drawn by
+  `random.Random(20261130).sample`, read from the 30–65% band of the header. Into
+  `spot_check.json`. A mismatch is looked at again, zoomed in, knowing only that there is a mismatch.
+  A confirmed read goes into `adjudication.json` and counts as an error; a withdrawn read is
+  reported as a reader error. Hidden errors among the unsampled accepts stay unseen.
+
+1. **Primary.** v8, wrong against the page among accepted, with its 95% upper bound. GO if ≤ 3%;
+   KILL v8 if > 5%; ITERATE in between.
+2. **Coverage.** Accepted share ≥ 70%.
+3. **Certificate.** On this batch alone, never pooled. Binomial test at α = 1%, δ = 0.1
+   (n ≥ 230).
+4. **Report only.** v7 on the same documents; v7 accepts dropped by A and by B, with how many were
+   wrong against the page; scans versus PDFs; VBHN versus the rest; accepts from the block, with
+   their errors; errors against the listing as published; reader errors in the spot check.
