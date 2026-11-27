@@ -457,3 +457,74 @@ that built v9; it sees an image and nothing else: no engine read, no listing val
    accepts by rule L and from the block, with their errors; rule B drops under v8 and v9; scans
    versus PDFs; VBHN, National Assembly documents, the rest; errors against the listing as
    published; reader errors in the spot check.
+
+## Tenth batch (v10) (written 2026-11-28, before downloading it)
+
+v9 on batch 9: 362 of 500 accepted (72.4%, bar met), 1 wrong against the page, upper bound 1.3%,
+certificate p = 0.122, not certified. The error, and both errors of v7 on batch 7, are handwritten
+page-1 numbers that Vision and Qwen misread the same way: "2615" → 2645 and "2491" → 249 (batch 7),
+"02" → 62 (batch 9). v9's rule B drops the two of batch 7 (their dates break register order) but not
+the one of batch 9 ("01/2025/TT-BTTTT" carries the same date).
+
+v10 (`apply_g`, `third_reader.py`) is v9 with one change:
+- **G.** A third reader from another model family: Gemma 4 E4B (`gemma4:e4b` in ollama, temperature
+  0, thinking off, at most 32 tokens, the prompt in `third_reader.py`). It reads `num.png`, a crop of
+  the "Số: …" line cut from the full-resolution header (`head.png`): the topmost Vision observation
+  holding "Số" (else one shaped like a number), from 3% of the width left of it to 42% right of it,
+  0.8 line heights above to 1.8 below (`vision_boxes.swift`, `numline_box`). Every v9 accept whose
+  number comes from page 1 (`where` = "page1" or "passed") is kept only if the leading number of
+  Gemma's read equals the accepted number's digits before the first "/" (`third_ok`: first run of
+  digits before the first "/", spaces and hyphens inside it dropped, "†" "‡" "T" → 7, "H" → 4,
+  "g" → 9, compared as integers). No crop, or no number in Gemma's read: v10 abstains. Accepts from
+  the authentication block are kept as v9 (no error came from the block in batches 1–9). Rule B runs on
+  v9's accepts first, unchanged; G only removes accepts.
+
+In-sample (batches 1–9, 3,726 documents; reads already made; truth = listing except
+`adjudication.json`): IN_SAMPLE. The crop rule was set on batch 1 (23 of 24 crops on a contact
+sheet held the number line); the parsing and the digit folds were set after seeing Gemma's reads
+of batches 1–9, so every number below is in-sample.
+- On the three known errors, with the pipeline's own crops: "02" → Gemma gives no number (G
+  abstains); "2491" → Gemma reads 2491 (G abstains); **"2615" → Gemma reads 2645, the same wrong
+  value** (G keeps it; only rule B removes it). G alone would catch 2 of 3, B alone 2 of 3, both
+  together 3 of 3.
+- v9 → v10 accepted: batch 1 161 → 160, batch 2 165 → 164, batch 3 249 → 247, batch 4 418 → 414,
+  batch 5 336 → 333, batch 6 326 → 321, batch 7 371 → 366, batch 8 358 → 353, batch 9 362 → 356
+  (71.2%). In all 2,746 → 2,714 (32 removed); v9's one wrong accept (batch 9) is among them; 0 wrong
+  remain. The correct accepts G removes: Gemma drops or adds a digit, reads 1 as 4, or misses the
+  line (a wrong crop twice).
+- **Coverage risk, stated before the run:** G costs 0.5–1.2 points per batch in-sample, and Gemma
+  kept producing new spellings of handwritten digits up to the last batch read ("53f" for 537,
+  "175Z" for 1752, 7 read as 4 in four UBTVQH numbers), so its cost out of sample may be higher. v9 met the
+  bar on batch 9 by 2.4 points, so v10 can miss it on a batch with v9 near 70%. Batch 10 is older
+  (listing dates September–December 2024); its mix is not known.
+
+v10 is frozen as of the commit that adds this section: `run_scans.py`, `third_reader.py`,
+`vision_boxes.swift`, `issuer_codes9.txt`, `passed_prompt.txt`, `header_prompt.txt`, `vlm_ocr.py`,
+Qwen3.5-4B (MLX 4-bit) at 1240 px, and `gemma4:e4b` as served by the local ollama (model id
+eb2177adf764). Only input paths may change.
+
+**Data.** The batch-9 listing (vanban.chinhphu.vn pages 146–180 as of 2026-11-27, 1,362 documents
+not in batches 1–8), entries after the last one downloaded for batch 9 (listing index > 575), in
+listing order: first PDF at most 5 MB, until 500 PDFs are downloaded. Qwen reads every
+`head_small.png`, every `auth7_small.png`, and the `plast_small.png` of every document
+`--passed-paths` lists; Gemma reads the `num.png` of every document `--gemma-paths` lists (v9
+page-1 or last-page accepts).
+
+**Truth: the page, read blind, with no person involved.** As batch 9. All reads are by the agent
+that built v10; it sees an image and nothing else: no engine read, no listing value.
+- Every v9 accept that disagrees with the listing (`--to-adjudicate10`; v10's accepts are a subset
+  of v9's) is read from the image the accept came from and written to `adjudication.json`. If the
+  image cannot be read with certainty, the listing stands.
+- Spot check (`--spot10`): every v10 accept from the block or from the last page that agrees with
+  the listing, and 100 v10 accepts from page 1 that agree with it, drawn by
+  `random.Random(20261202).sample`. Read and checked as batch 9, with the same negative control.
+
+1. **Primary.** v10, wrong against the page among accepted, with its 95% upper bound. GO if ≤ 3%;
+   KILL v10 if > 5%; ITERATE in between.
+2. **Coverage.** Accepted share ≥ 70%.
+3. **Certificate.** On this batch alone, never pooled. Binomial test at α = 1%, δ = 0.1
+   (n ≥ 230).
+4. **Report only.** v9 on the same documents; accepts removed by G, split by cause (no crop, no
+   number read, another number read), with their errors; v9 errors G keeps; accepts by rule L and
+   from the block, with their errors; scans versus PDFs; VBHN, National Assembly documents, the
+   rest; errors against the listing as published; reader errors in the spot check.

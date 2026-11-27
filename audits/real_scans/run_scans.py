@@ -564,6 +564,24 @@ def register_drop9(accepts: list[tuple[int, str, tuple[int, int, int]]]) -> set[
     return register_drop([a for a in accepts if not many.search(a[1].split("/")[-1]) or "UBTVQH" in a[1]])
 
 
+# --- v10 (written 2026-11-28 after the ninth batch; developed on batches 1-9, 3,726 documents) ---
+# v9 met coverage on batch 9 but failed the certificate on one error, and v7 failed it on two: in all
+# three, a handwritten page-1 number that Vision and Qwen misread the same way ("2615" -> 2645,
+# "2491" -> 249, "02" -> 62). Rule B could not catch the third (its neighbour "01" has the same date).
+# G. A third reader from another model family, Gemma 4 E4B (ollama, gemma4:e4b, greedy, thinking off),
+#    reads a tight crop of the "Số: …" line (num.png: the line found by vision_boxes.swift, cut from
+#    the full-resolution header; third_reader.py). Every v9 accept whose number comes from page 1
+#    (where "page1" or "passed") is kept only if Gemma's leading number equals the accepted number's
+#    digits before the first "/" (third_reader.third_ok); with no crop, or no number in Gemma's read,
+#    v10 abstains. Accepts from the authentication block are typed, not handwritten, and are kept as v9.
+#    Rule B runs on v9's accepts first, as in v9; G only removes accepts.
+def apply_g(where: str, num: str, crop: bool, gemma_text: str | None) -> bool:
+    """Rule G: True when a v9 accept survives the third reader."""
+    from third_reader import third_ok
+
+    return where == "auth" or (crop and third_ok(num, gemma_text))
+
+
 def seal_box(rgb: np.ndarray) -> tuple[int, int, int, int] | None:
     """Bounding box of the largest blob of red ink, grown to take in the signer's title."""
     red = red_mask(rgb[::4, ::4])
@@ -687,6 +705,10 @@ def main() -> None:
     ap.add_argument("--confirm9", action="store_true", help="add the ninth-batch (v9) verdicts of PREREG.md")
     ap.add_argument("--to-adjudicate9", action="store_true", help="v9 or v8 accepts that differ from the listing")
     ap.add_argument("--spot9", action="store_true", help="the v9-accepted ids to read blind (PREREG)")
+    ap.add_argument("--gemma-paths", action="store_true", help="v10: num.png of v9 page-1 accepts, for Gemma")
+    ap.add_argument("--confirm10", action="store_true", help="add the tenth-batch (v10) verdicts of PREREG.md")
+    ap.add_argument("--to-adjudicate10", action="store_true", help="v10 or v9 accepts that differ from the listing")
+    ap.add_argument("--spot10", action="store_true", help="the v10-accepted ids to read blind (PREREG)")
     args = ap.parse_args()
     listing = json.loads((PRIV / "docs.json").read_text(encoding="utf-8"))
     ids = sorted(int(p.stem) for p in (PRIV / "pdf").glob("*.pdf"))
@@ -737,6 +759,10 @@ def main() -> None:
     if (PRIV / "qwen_passed.jsonl").exists():  # passed_prompt.txt on plast_small.png (v9, rule L)
         with open(PRIV / "qwen_passed.jsonl", encoding="utf-8") as fh:
             qpassed = {j["path"]: j["text"] for j in map(json.loads, fh)}
+    gemma = {}
+    if (PRIV / "gemma_num.jsonl").exists():  # third_reader.py read: Gemma on num.png (v10, rule G)
+        with open(PRIV / "gemma_num.jsonl", encoding="utf-8") as fh:
+            gemma = {j["path"]: j["text"] for j in map(json.loads, fh)}
     if args.passed_paths:  # page 1 gives no date and Vision finds the closing sentence on the last page
         for r in recs:
             d = PRIV / "pages" / f"{r['id']:03d}"
@@ -868,6 +894,14 @@ def main() -> None:
             "ok_page": (n9, d9) == (pn, pd),
             "adjudicated": bool(page),
         }
+        crop = (d / "num.png").exists()
+        row["v10"] = {
+            **row["v9"],
+            "crop": crop,
+            "gemma": gemma.get(str(d / "num.png")),
+            "gemma_read": str(d / "num.png") in gemma,
+            "veto": False,
+        }
         row["layer"] = {"num": r.get("layer_num"), "date": r.get("layer_date")}
         row["layer"]["num_ok"] = row["layer"]["num"] == tn
         row["layer"]["date_ok"] = tuple(row["layer"]["date"] or ()) == td
@@ -884,6 +918,11 @@ def main() -> None:
     for x in rows:
         if x["id"] in dropped9:
             x["v9"].update(num=None, register=True, register_num=x["v9"]["num"])
+            x["v10"].update(num=None, register=True, register_num=x["v10"]["num"])
+    for x in rows:  # rule G, after rule B
+        v = x["v10"]
+        if v["num"] and not apply_g(v["where"], v["num"], v["crop"], v["gemma"]):
+            v.update(num=None, veto=True, veto_num=v["num"])
     (PRIV / "scan_rows.json").write_text(
         json.dumps(
             [{**{k if isinstance(k, str) else "_".join(k): v for k, v in x.items()}} for x in rows],
@@ -943,6 +982,22 @@ def main() -> None:
         pick = rest + random.Random(SPOT_SEED9).sample(page1, min(SPOT_N, len(page1)))
         print(" ".join(f"{i}:{where[i]}" for i in pick))
         return
+    if args.gemma_paths:  # PREREG "Tenth batch": Gemma reads the number line of every v9 page-1 accept
+        for x in rows:
+            if x["v9"]["num"] and x["v9"]["where"] != "auth" and x["v10"]["crop"]:
+                print(PRIV / "pages" / f"{x['id']:03d}" / "num.png")
+        return
+    if args.to_adjudicate10:  # v10's accepts are v9's minus rule G, so v9's cover both
+        print(" ".join(str(x["id"]) for x in rows if x["v9"]["num"] and not x["v9"]["ok_listing"]))
+        return
+    if args.spot10:  # PREREG "Tenth batch": every agreeing accept from the block or the last page, 100 from page 1
+        agree = sorted(x["id"] for x in rows if x["v10"]["num"] and x["v10"]["ok_listing"])
+        where = {x["id"]: x["v10"]["where"] for x in rows}
+        rest = [i for i in agree if where[i] in ("auth", "passed")]
+        page1 = [i for i in agree if where[i] == "page1"]
+        pick = rest + random.Random(SPOT_SEED10).sample(page1, min(SPOT_N, len(page1)))
+        print(" ".join(f"{i}:{where[i]}" for i in pick))
+        return
     text = report(rows) + (confirm(rows) if args.confirm else []) + (confirm3(rows) if args.confirm3 else [])
     text += confirm4(rows) if args.confirm4 else []
     text += confirm5(rows) if args.confirm5 else []
@@ -950,6 +1005,7 @@ def main() -> None:
     text += confirm7(rows) if args.confirm7 else []
     text += confirm8(rows) if args.confirm8 else []
     text += confirm9(rows) if args.confirm9 else []
+    text += confirm10(rows) if args.confirm10 else []
     print("\n".join(text))
     if args.md:
         Path(args.md).write_text("\n".join(text) + "\n", encoding="utf-8")
@@ -1073,6 +1129,7 @@ SPOT_SEED6 = 20261128
 SPOT_SEED7 = 20261129
 SPOT_SEED8 = 20261130
 SPOT_SEED9 = 20261201
+SPOT_SEED10 = 20261202
 
 
 def confirm5(rows: list[dict]) -> list[str]:
@@ -1372,6 +1429,92 @@ def confirm9(rows: list[dict]) -> list[str]:
         f"{sum(x['v9']['adjudicated'] for x in acc)} accepted documents were adjudicated."
     )
     return out
+
+
+def confirm10(rows: list[dict]) -> list[str]:
+    """Verdicts of PREREG.md, "Tenth batch (v10)", on this batch alone."""
+    missing = [x["id"] for x in rows if not x["v3"]["qwen"]]
+    missing += [x["id"] for x in rows if x["v9"]["auth"] and not x["v9"]["auth_qwen"]]
+    missing += [x["id"] for x in rows if x["v9"]["passed"] and not x["v9"]["passed_qwen"]]
+    if missing:
+        raise SystemExit(f"no Qwen read for {len(missing)} crops (first: {missing[:5]}); run vlm_ocr.py first")
+    no_g = [
+        x["id"]
+        for x in rows
+        if x["v9"]["num"] and x["v9"]["where"] != "auth" and x["v10"]["crop"] and not x["v10"]["gemma_read"]
+    ]
+    if no_g:
+        raise SystemExit(f"no Gemma read for {len(no_g)} crops (first: {no_g[:5]}); run third_reader.py read first")
+    spot = PRIV / "spot_check.json"
+    if not spot.exists():
+        raise SystemExit("no spot_check.json: the blind spot check is part of the truth (PREREG)")
+    n_spot = sum(1 for k in json.loads(spot.read_text(encoding="utf-8")) if not k.startswith("_"))
+    n = len(rows)
+    out = ["", "## 14. Tenth batch: pre-registered verdicts for v10", ""]
+    out += [
+        'PREREG.md, "Tenth batch (v10)": v10 frozen at the commit that added that section, documents not',
+        "seen before. Truth is the page: the listing, except where a reader who saw only the page image",
+        "corrected it (`adjudication.json`): every accepted document that disagrees with the listing, and",
+        f"the hidden errors found by a blind read of {n_spot} accepted documents that agree with it: every",
+        "one accepted from the authentication block or the last page, and 100 random ones from page 1.",
+        "",
+    ]
+    for name, key in (("Primary, v10", "v10"), ("Report only, v9", "v9")):
+        a = [x[key] for x in rows if x[key]["num"]]
+        w = sum(not x["ok_page"] for x in a)
+        ub = cp_upper(w, len(a)) if a else 1.0
+        p = binom_cdf(w, len(a), ALPHA) if a else 1.0
+        verdict = "GO" if ub <= 0.03 else (f"KILL {key}" if ub > 0.05 else "ITERATE")
+        cert = len(a) >= 230 and p <= DELTA
+        cov = len(a) / n
+        out.append(
+            f"- {name}: {len(a)} of {n} accepted ({pct(cov)}, bar 70% → {'met' if cov >= 0.7 else 'missed'}), "
+            f"{w} wrong against the page, 95% upper bound {pct(ub)} → **{verdict}**; certificate at "
+            f"α = {pct(ALPHA)}, δ = {DELTA}: p = {p:.3f} → **{'certified' if cert else 'not certified'}**."
+        )
+    acc = [x for x in rows if x["v10"]["num"]]
+    for lab, g in (
+        ("scans", [x for x in rows if x["scan"]]),
+        ("PDFs with a text layer", [x for x in rows if not x["scan"]]),
+        ("VBHN (listing)", [x for x in rows if x["kind"] == "VBHN"]),
+        ("laws and resolutions of the National Assembly (listing)", [x for x in rows if "QH" in x["kind"]]),
+        ("everything else (listing)", [x for x in rows if x["kind"] != "VBHN" and "QH" not in x["kind"]]),
+    ):
+        ga = [x for x in g if x["v10"]["num"]]
+        out.append(
+            f"- v10 on {lab}: {len(ga)} of {len(g)} accepted ({pct(len(ga) / len(g)) if g else '—'}), "
+            f"{sum(not x['v10']['ok_page'] for x in ga)} wrong against the page."
+        )
+    veto = [x for x in rows if x["v10"]["veto"]]
+    for lab, g in (
+        ("no crop of the number line", [x for x in veto if not x["v10"]["crop"]]),
+        ("Gemma read no number", [x for x in veto if x["v10"]["crop"] and lead_g(x) is None]),
+        ("Gemma read another number", [x for x in veto if x["v10"]["crop"] and lead_g(x) is not None]),
+    ):
+        out.append(
+            f"- v9 accepts removed by rule G, {lab}: {len(g)}, of which "
+            f"{sum(not x['v9']['ok_page'] for x in g)} wrong against the page."
+        )
+    out.append(
+        f"- Rule G in all: {len(veto)} removed, {sum(not x['v9']['ok_page'] for x in veto)} of them wrong; "
+        f"v9 accepts kept by G that are wrong: {sum(not x['v10']['ok_page'] for x in acc)}."
+    )
+    for lab, where in (("the authentication block", "auth"), ("the last page (rule L)", "passed")):
+        g = [x for x in acc if x["v10"]["where"] == where]
+        out.append(
+            f"- Accepted from {lab}: {len(g)}, {sum(not x['v10']['ok_page'] for x in g)} wrong against the page."
+        )
+    out.append(
+        f"- Against the listing as published: {sum(not x['v10']['ok_listing'] for x in acc)} wrong of {len(acc)}; "
+        f"{sum(x['v10']['adjudicated'] for x in acc)} accepted documents were adjudicated."
+    )
+    return out
+
+
+def lead_g(x: dict) -> int | None:
+    from third_reader import lead_number
+
+    return lead_number(x["v10"]["gemma"])
 
 
 def report(rows: list[dict]) -> list[str]:
