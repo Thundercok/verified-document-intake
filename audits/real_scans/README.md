@@ -206,6 +206,37 @@ ground truth.
     Vision alone, all 500: number 90.2%, date 84.2% (no consolidated texts to drag it down). The
     format checks let 39 of 427 wrong reads through (upper bound 11.8%). Dropout costs 0 points.
 
+14. **v8 on an eighth batch: certified, but coverage falls 7.4 points short, and neither new rule
+    caught anything (pre-registered, PREREG.md).** 500 documents not seen before (listing dates
+    26/02–27/07/2025). v8 is v7 with two abstentions aimed at the batch-7 errors: rule A abstains
+    when more than one number candidate passes the checks (a slash read as "1"); rule B drops
+    accepts that break register order within the batch (a higher number with an earlier date, in
+    the same tail, slash count and year). No person took part. v8 accepts 313 (**62.6%**, bar 70%,
+    95% interval 58.2–66.9%), 0 wrong against the page, upper bound 1.0% → **GO** on risk;
+    certificate p = 0.043 → **certified**; coverage **missed**. v7 on the same documents: 318
+    (63.6%), 0 wrong, p = 0.041, also certified.
+    **The two rules cost and caught nothing here.** Rule A fired on 0 accepts. Rule B dropped 5,
+    all correct: five provincial decisions "48–53/2025/QĐ-UBND" from **different provinces**,
+    which rule B grouped as one register because they share the tail "QĐ-UBND". A tail does not
+    name a register when many issuers use it; rule B as frozen is wrong for provincial documents
+    (seen after scoring). In-sample on batches 1–7 the two rules removed both errors at a cost of
+    18 correct accepts; out of sample they removed 0 errors and 5 correct accepts. With no
+    handwritten-number error in this batch, v8's fix is untested, not confirmed.
+    **Why coverage fell (post hoc, does not count).** The batch sits on the July 2025
+    reorganisation: 44 laws ("…/2025/QH15") carry no date on page 1 and none was accepted; 54
+    Standing Committee resolutions ("…/NQ-UBTVQH15") were mostly rejected, often because Vision
+    reads the printed "15" as "1S" or "IS" and the issuer-code check refuses it (7 of 54
+    accepted); 19 of 20 VBHN were missed (block found in 2). Without these 118, v8 accepts 305 of
+    382 (79.8%).
+    455 of 500 are scans (60.0% accepted); PDFs with a text layer 88.9%.
+    **Truth.** 1 accept disagreed with the listing and was read blind: a listing fault (listing
+    "TT-BNNMT", page "TT-BTNMT"). The blind spot check read 101 agreeing accepts (the 1 from the
+    block, 100 random from page 1): 0 mismatches; reads paired with the wrong id were flagged 101
+    of 101. Up to 2.9% of the 212 unsampled accepts could still hide an error. The reader is the
+    agent that built v8.
+    Vision alone, all 500: number 81.0%, date 82.8%. The format checks let 53 of 409 wrong reads
+    through (upper bound 16.0%). Dropout costs 0.4 points.
+
 **What this means for the plan.** Printed administrative documents are within reach of Apple
 Vision, but their key fields carry handwriting or an overlay, and Vision's misreads there are
 plausible numbers. The design that holds up is the one the verifier already assumes: compare
@@ -225,17 +256,26 @@ risk side has held on three batches, coverage only just. On the seventh batch th
 broke for the first time since batch 4: two handwritten numbers misread the same way by both
 engines. The upper bound (1.8%) still passes the 3% bar, but the 1% certificate does not, and no
 batch of 500 can earn it back with two errors. The bottleneck is now handwritten numbers on
-scans, where agreement between Vision and Qwen is not enough.
+scans, where agreement between Vision and Qwen is not enough. On the eighth batch v8 was certified
+again (0 wrong in 313) but coverage fell to 62.6%, and v7 would have done the same with 5 more
+accepts: this batch had no handwritten-number error for v8's two rules to catch, and rule B's
+only effect was to drop five correct provincial decisions. Coverage, not risk, is now the binding
+bar, and it depends on the document mix: laws, Standing Committee resolutions and consolidated
+texts make up 118 of 500 here and v8 accepts 8 of them.
 
 ## Not tested here
 
 - **The signer's name under the seal.** No ground truth.
 - **Phone photos.** These are flatbed scans and rendered PDFs.
-- **Commune-level documents.** Of 2,726 documents, all but a handful of provincial ones come from
+- **Commune-level documents.** Of 3,226 documents, all but a handful of provincial ones come from
   central government; commune paperwork may be older, fainter and more often handwritten.
 - **The number of a scanned consolidated text (VBHN).** v6 and v7 find the authentication block
   only through the text layer; in a scan they abstain. Batch 6 had 9 such scans.
 - **The v7 locator out of sample.** Batch 7 held only 10 VBHN; the looser locator added 2 accepts.
+  Batch 8 held 20, the block was found in 2.
+- **v8's rule A and rule B against a real error out of sample.** Batch 8 had no handwritten-number
+  error, so neither rule was tested where it matters; rule B is known to misfire on provincial
+  "QĐ-UBND" numbers from different provinces.
 - **The body text.** Only the header and the signer block were read.
 
 ## Reproduce
@@ -276,4 +316,8 @@ VBCP_DIR=data/private/vbcp7 uv run python audits/real_scans/run_scans.py --to-ad
 VBCP_DIR=data/private/vbcp7 uv run python audits/real_scans/run_scans.py --skip-ocr --spot7
 #   prints id:where; read the header band, or auth7.png when where = auth, blind into spot_check.json
 VBCP_DIR=data/private/vbcp7 uv run python audits/real_scans/run_scans.py --skip-ocr --confirm7 --md audits/real_scans/RESULTS_v7.md
+# eighth batch (v8): Qwen as for batch 7; v8's accepts are a subset of v7's, so adjudicate v7's
+VBCP_DIR=data/private/vbcp8 uv run python audits/real_scans/run_scans.py --to-adjudicate7
+VBCP_DIR=data/private/vbcp8 uv run python audits/real_scans/run_scans.py --skip-ocr --spot8
+VBCP_DIR=data/private/vbcp8 uv run python audits/real_scans/run_scans.py --skip-ocr --confirm8 --md audits/real_scans/RESULTS_v8.md
 ```
