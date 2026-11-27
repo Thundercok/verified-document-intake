@@ -258,3 +258,60 @@ that built v6; it sees an image and nothing else: no engine read, no listing val
 4. **Report only.** v5 on the same documents; scans versus PDFs; VBHN versus the rest (by the
    listing's type); accepts from the authentication block, with their errors; errors against the
    listing as published; "?" fields and reader errors in the spot check.
+
+## Seventh batch (v7) (written 2026-11-27, before listing or downloading it)
+
+v6 passed both bars on batch 6 (0 wrong in 355 accepted, upper bound 0.8%, certificate p = 0.028;
+coverage 71.0%, one point over the bar, 95% interval 66.9–74.8%). VBHN stayed the weak part: 31 of
+107 accepted, all from the authentication block. Looked at after scoring, so in-sample: of the 98
+VBHN with a text layer, `auth_locate` missed the block in 59. Two causes: the National Assembly
+Office (VPQH) text layer is an OCR layer with a broken font ("xAc THl/C VAN BAN HQP NHA T"), so
+`AUTH_RE` never matches; and in clean layers the phrase is split over text fragments in ways the
+8-fragment window misses.
+
+v7 (`auth_locate7`) changes only the locator. Each text fragment is folded (marks stripped, upper
+case, A–Z and 0–9 only), the fragments are joined with an index map, and the pattern
+`XACTH\w{0,3}VANBANH\w{0,3}PN(H|II|B)AT` is searched; the block is placed at the fragment where the
+last match on the page starts. The page is the last page with a match. Crop, prompt, reading and
+the accept rule are v6's (`read_v6`, VBHN numbers only from the block). Scans still have no path.
+
+In-sample (batches 1–6, 2,226 documents, reads already made; truth = listing except
+`adjudication.json`; the new accepts in batches 1–6 were not read blind): IN_SAMPLE.
+- The v7 locator finds every block v6 found, on the same page, with a pixel-identical crop (125 of
+  125 in batches 4–6), and 119 more, all in VBHN; it finds none in a document that is not a VBHN.
+- Accepted, v6 → v7: batch 1 162 → 162, batch 2 165 → 165, batch 3 248 → 248, batch 4 408 → 409,
+  batch 5 379 → 384, batch 6 355 → 396 (79.2%; VBHN 31 → 72 of 107). 0 wrong in all six. v7 cannot
+  lose a v6 accept: page 1 is unchanged and every v6 block is a v7 block with the same crop.
+- From batch 7 on, v6 (report only) reuses the v7 reads of a block v6 also finds (same image).
+
+v7 is frozen as of the commit that adds this section: `run_scans.py`, `issuer_codes.txt`
+(unchanged from v5), `header_prompt.txt`, `vlm_ocr.py`, the model and the 1240 px scale. Only
+input paths may change.
+
+**Data.** Pages 81 onward of the listing on vanban.chinhphu.vn as of 2026-11-27, read with the
+batch-6 lister (older than batch 6). Any document whose number is in the listings of batches 1–6
+(downloaded or not) is skipped. First PDF at most 5 MB, in listing order, until 500 PDFs are
+downloaded. These documents are older again; how many VBHN they hold is part of what is tested.
+
+**Truth: the page, read blind, with no person involved.** As batch 6, except the spot check. All
+reads are by the agent that built v7; it sees an image and nothing else: no engine read, no
+listing value.
+- Every v7 accept that disagrees with the listing (`--to-adjudicate7`, ids only) is read from the
+  image the accept came from (the full header, or `auth7.png`) and written to `adjudication.json`.
+  If the image cannot be read with certainty, the listing stands.
+- Spot check of the accepts that agree with the listing (`--spot7`): **every** accept from the
+  authentication block, read from `auth7.png`, because the block is the path v7 widens; and 100
+  accepts from page 1 drawn by `random.Random(20261129).sample`, read from the 30–65% band of the
+  header. Into `spot_check.json`. A mismatch is looked at again, zoomed in, knowing only that there
+  is a mismatch. A confirmed read goes into `adjudication.json` and counts as an error; a withdrawn
+  read is reported as a reader error. Hidden errors among the unsampled page-1 accepts stay unseen;
+  this is reported as a limit.
+
+1. **Primary.** v7, wrong against the page among accepted, with its 95% upper bound. GO if ≤ 3%;
+   KILL v7 if > 5%; ITERATE in between.
+2. **Coverage.** Accepted share ≥ 70%.
+3. **Certificate.** On this batch alone, never pooled. Binomial test at α = 1%, δ = 0.1
+   (n ≥ 230).
+4. **Report only.** v6 and v5 on the same documents; scans versus PDFs; VBHN versus the rest (by
+   the listing's type); accepts from the block, with their errors; errors against the listing as
+   published; "?" fields and reader errors in the spot check.
