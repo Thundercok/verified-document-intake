@@ -1,0 +1,265 @@
+{
+  "@context": {
+    "@language": "en",
+    "@vocab": "https://schema.org/",
+    "cr": "http://mlcommons.org/croissant/",
+    "sc": "https://schema.org/",
+    "conformsTo": "dct:conformsTo",
+    "dct": "http://purl.org/dc/terms/"
+  },
+  "@type": "sc:Dataset",
+  "conformsTo": "http://mlcommons.org/croissant/1.0",
+  "name": "VBCP-NumDate",
+  "description": "Vietnamese central-government documents from vanban.chinhphu.vn (06/2025-11/2026), in 8 chronological batches, with the document number and issue date as labels (the portal listing, corrected by blind adjudication where an accepted read disagreed), page and seal flags, and the reads of Apple Vision, Tesseract vie and Qwen3.5-4B on header, seal and authentication-block crops. Tier 1: metadata only; the PDFs are fetched from their source URLs and checked against sha256.",
+  "license": "https://creativecommons.org/licenses/by/4.0/",
+  "citeAs": "Source documents: www.chinhphu.vn (Cục Thông tin và Truyền thông Chính phủ).",
+  "version": "1.0.0",
+  "datePublished": "2026-11-27",
+  "distribution": [
+    {
+      "@type": "cr:FileObject",
+      "@id": "documents.jsonl",
+      "name": "documents.jsonl",
+      "contentUrl": "documents.jsonl",
+      "encodingFormat": "application/jsonlines",
+      "sha256": "2ec2a33438da854c9254085c43f71ea32d4403b44026cab71b56bca4f0c72ea4"
+    },
+    {
+      "@type": "cr:FileObject",
+      "@id": "ocr.jsonl.gz",
+      "name": "ocr.jsonl.gz",
+      "contentUrl": "ocr.jsonl.gz",
+      "encodingFormat": "application/jsonlines",
+      "sha256": "30c6b2b06ec0ea416ef8cd26468693459139b93489d850a8ea08b0affe36a85a"
+    }
+  ],
+  "recordSet": [
+    {
+      "@type": "cr:RecordSet",
+      "@id": "documents",
+      "name": "documents",
+      "key": {
+        "@id": "documents.jsonl/doc_id"
+      },
+      "field": [
+        {
+          "@type": "cr:Field",
+          "@id": "documents.jsonl/doc_id",
+          "name": "doc_id",
+          "description": "vbcp<batch>-<listing index>",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "documents.jsonl"
+            },
+            "extract": {
+              "jsonPath": "$.doc_id"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "documents.jsonl/batch",
+          "name": "batch",
+          "description": "1-8, in the order collected (newest listing first)",
+          "dataType": "sc:Integer",
+          "source": {
+            "fileObject": {
+              "@id": "documents.jsonl"
+            },
+            "extract": {
+              "jsonPath": "$.batch"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "documents.jsonl/url",
+          "name": "url",
+          "description": "first PDF of the document on datafiles.chinhphu.vn",
+          "dataType": "sc:URL",
+          "source": {
+            "fileObject": {
+              "@id": "documents.jsonl"
+            },
+            "extract": {
+              "jsonPath": "$.url"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "documents.jsonl/pdf_sha256",
+          "name": "pdf_sha256",
+          "description": "sha256 of the PDF as downloaded",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "documents.jsonl"
+            },
+            "extract": {
+              "jsonPath": "$.pdf_sha256"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "documents.jsonl/doc_type",
+          "name": "doc_type",
+          "description": "type code from the number (QĐ, TT, NĐ, VBHN...)",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "documents.jsonl"
+            },
+            "extract": {
+              "jsonPath": "$.doc_type"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "documents.jsonl/scan",
+          "name": "scan",
+          "description": "page 1 has no text layer",
+          "dataType": "sc:Boolean",
+          "source": {
+            "fileObject": {
+              "@id": "documents.jsonl"
+            },
+            "extract": {
+              "jsonPath": "$.scan"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "documents.jsonl/label_number",
+          "name": "label_number",
+          "description": "document number (label)",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "documents.jsonl"
+            },
+            "extract": {
+              "jsonPath": "$.label.number"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "documents.jsonl/label_date",
+          "name": "label_date",
+          "description": "issue date (label)",
+          "dataType": "sc:Date",
+          "source": {
+            "fileObject": {
+              "@id": "documents.jsonl"
+            },
+            "extract": {
+              "jsonPath": "$.label.date"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "documents.jsonl/label_source",
+          "name": "label_source",
+          "description": "listing | adjudicated",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "documents.jsonl"
+            },
+            "extract": {
+              "jsonPath": "$.label.source"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "documents.jsonl/seal_on_last_page",
+          "name": "seal_on_last_page",
+          "description": "a red-ink blob above 0.2% of the last page",
+          "dataType": "sc:Boolean",
+          "source": {
+            "fileObject": {
+              "@id": "documents.jsonl"
+            },
+            "extract": {
+              "jsonPath": "$.seal_on_last_page"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "@type": "cr:RecordSet",
+      "@id": "ocr",
+      "name": "ocr",
+      "field": [
+        {
+          "@type": "cr:Field",
+          "@id": "ocr.jsonl.gz/doc_id",
+          "name": "doc_id",
+          "description": "document",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "ocr.jsonl.gz"
+            },
+            "extract": {
+              "jsonPath": "$.doc_id"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "ocr.jsonl.gz/engine",
+          "name": "engine",
+          "description": "apple_vision | tesseract_vie | qwen3.5-4b",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "ocr.jsonl.gz"
+            },
+            "extract": {
+              "jsonPath": "$.engine"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "ocr.jsonl.gz/crop",
+          "name": "crop",
+          "description": "head, head_drop, head_small, seal, seal_drop, auth, auth7...",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "ocr.jsonl.gz"
+            },
+            "extract": {
+              "jsonPath": "$.crop"
+            }
+          }
+        },
+        {
+          "@type": "cr:Field",
+          "@id": "ocr.jsonl.gz/text",
+          "name": "text",
+          "description": "the engine's output",
+          "dataType": "sc:Text",
+          "source": {
+            "fileObject": {
+              "@id": "ocr.jsonl.gz"
+            },
+            "extract": {
+              "jsonPath": "$.text"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

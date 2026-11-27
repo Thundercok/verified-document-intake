@@ -1,0 +1,14 @@
+{
+  "_note": "Documents whose OCR text trips the identity-marker screen in build.py, reviewed 2026-11-27 by reading the unmasked context. None is personal data. A new hit fails the build until it is reviewed and listed here.",
+  "vbcp1-0116": "e-signature timestamp of the portal stamp (followed by +07:00)",
+  "vbcp4-0060": "e-signature timestamp (202001380000); 202 is not a CCCD province code",
+  "vbcp4-0201": "e-signature timestamp (…202616:46:00, signed 06.08.2026 16:46:00)",
+  "vbcp4-0237": "a resolution number merged with its year by OCR ('Nghị quyết số …'); 202 is not a province code",
+  "vbcp4-0343": "OCR garble of handwriting in the header; 057 is not a CCCD province code",
+  "vbcp4-0590": "OCR garble of the header; 247 is not a CCCD province code",
+  "vbcp5-0451": "e-signature timestamp (…113936-07:00 read as -0000)",
+  "vbcp6-0295": "e-signature timestamp (…2026 16:24:26 -07:00)",
+  "vbcp7-0108": "e-signature timestamp next to 'Người ký: CỔNG THÔNG TIN ĐIỆN TỬ CHÍNH PHỦ'; 266 is not a province code",
+  "vbcp7-0382": "OCR garble of a handwritten header; 717 is not a CCCD province code",
+  "vbcp8-0430": "e-signature timestamp (…143215-07:00); 160 is not a CCCD province code"
+}
