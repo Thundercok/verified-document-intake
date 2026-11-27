@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "Verified Document Intake"
+abstract: "Selective and verified on-device document intake: deterministic PDF/OCR primitives, field-level uncertainty calibration, and selective abstention for administrative digitization."
+authors:
+  - family-names: "Huynh"
+    given-names: "Nhat Huy"
+repository-code: "https://github.com/Thundercok/verified-document-intake"
+license: MIT
