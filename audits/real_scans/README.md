@@ -177,6 +177,35 @@ ground truth.
     116 of 470 wrong reads through (upper bound 28.2%), worse than batch 5, again mostly VBHN
     title dates. Dropout costs 0.6 points.
 
+13. **v7 on a seventh batch: coverage exactly at the bar, 2 errors, certificate fails
+    (pre-registered, PREREG.md).** 500 documents not seen before (listing dates 07–12/2025). v7 is
+    v6 with a looser locator for the authentication block (`auth_locate7`: text folded to A–Z0–9,
+    a pattern that allows garbled diacritics, block placed at the last match). No person took
+    part. v7 accepts 350 (**70.0%**, bar 70%, 95% interval 65.8–74.0%), **2 wrong** against the
+    page, upper bound 1.8% → **GO** on risk; certificate p = 0.319 → **not certified**. With 2
+    errors the certificate needs at least 531 accepts, more than a batch of 500 can give; with 1,
+    at least 388. v6 on the same documents: 348 (69.6%, would have missed), 2 wrong; v5: 346, 2
+    wrong.
+    **The two errors.** Both are handwritten numbers on page 1 that Vision and Qwen read the same
+    wrong way: "2615/QĐ-TTg" read as 2645, and "2491/QĐ-TTg" read as 249 (the last digit touches the
+    printed slash). Neither comes from the v7 change; v5 and v6 make the same two errors. This is
+    the failure batch 3 and 4 already named: two engines agreeing is not independence. On batches
+    5 and 6 it did not happen; here it happened twice in 295 accepted scans.
+    **Batch 7 barely tests v7.** Only 10 of the 500 are VBHN (batch 6: 107), the block was found in
+    5, and 4 were accepted from it, all correct. The v7 change added 2 accepts. Whether the looser
+    locator holds up out of sample is still unknown; the in-sample gain on batch 6 (355 → 396) is
+    not evidence.
+    **The batch is mostly scans.** 436 of 500 have no text layer (batch 6: 373). Scans 67.7%
+    accepted, PDFs with a text layer 85.9%. Without VBHN, 70.6%.
+    **Truth.** 4 accepts disagreed with the listing and were read blind: 2 listing faults
+    ("UBTVVQH15" for "UBTVQH15"; "01/VBHN-BNV" where the page prints "1"), and the 2 errors above.
+    The blind spot check read 103 agreeing accepts (all 3 from the block, 100 random from page 1):
+    0 mismatches; reads paired with the wrong id were flagged 103 of 103. One band (id 220) cut off
+    the number line and was read from the full header instead. Up to 3.0% of the 244 unsampled
+    accepts could still hide an error. The reader is the agent that built v7.
+    Vision alone, all 500: number 90.2%, date 84.2% (no consolidated texts to drag it down). The
+    format checks let 39 of 427 wrong reads through (upper bound 11.8%). Dropout costs 0 points.
+
 **What this means for the plan.** Printed administrative documents are within reach of Apple
 Vision, but their key fields carry handwriting or an overlay, and Vision's misreads there are
 plausible numbers. The design that holds up is the one the verifier already assumes: compare
@@ -192,16 +221,21 @@ On the fifth batch, v5 passed the certificate again (0 wrong in 328) but missed 
 because consolidated texts carry no number on page 1. Reading their number from elsewhere is the
 next coverage gain; the risk side has now held on two batches in a row. On the sixth batch, v6
 read that number from the authentication block and passed both bars, coverage by one point: the
-risk side has held on three batches, coverage only just.
+risk side has held on three batches, coverage only just. On the seventh batch the risk side
+broke for the first time since batch 4: two handwritten numbers misread the same way by both
+engines. The upper bound (1.8%) still passes the 3% bar, but the 1% certificate does not, and no
+batch of 500 can earn it back with two errors. The bottleneck is now handwritten numbers on
+scans, where agreement between Vision and Qwen is not enough.
 
 ## Not tested here
 
 - **The signer's name under the seal.** No ground truth.
 - **Phone photos.** These are flatbed scans and rendered PDFs.
-- **Commune-level documents.** Of 2,226 documents, all but 6 provincial ones come from central
-  government; commune paperwork may be older, fainter and more often handwritten.
-- **The number of a scanned consolidated text (VBHN).** v6 finds the authentication block only
-  through the text layer; in a scan it abstains. Batch 6 had 9 such scans.
+- **Commune-level documents.** Of 2,726 documents, all but a handful of provincial ones come from
+  central government; commune paperwork may be older, fainter and more often handwritten.
+- **The number of a scanned consolidated text (VBHN).** v6 and v7 find the authentication block
+  only through the text layer; in a scan they abstain. Batch 6 had 9 such scans.
+- **The v7 locator out of sample.** Batch 7 held only 10 VBHN; the looser locator added 2 accepts.
 - **The body text.** Only the header and the signer block were read.
 
 ## Reproduce
@@ -236,4 +270,10 @@ VBCP_DIR=data/private/vbcp6 uv run python audits/real_scans/run_scans.py --to-ad
 VBCP_DIR=data/private/vbcp6 uv run python audits/real_scans/run_scans.py --skip-ocr --spot6
 #   prints id:where; read the header band, or auth.png when where = auth, blind into spot_check.json
 VBCP_DIR=data/private/vbcp6 uv run python audits/real_scans/run_scans.py --skip-ocr --confirm6 --md audits/real_scans/RESULTS_v6.md
+# seventh batch (v7): run_scans also crops the block found by auth_locate7 (auth7_small.png);
+#   Qwen as above on head_small.png -> qwen.jsonl and on auth7_small.png -> qwen_auth7.jsonl
+VBCP_DIR=data/private/vbcp7 uv run python audits/real_scans/run_scans.py --to-adjudicate7
+VBCP_DIR=data/private/vbcp7 uv run python audits/real_scans/run_scans.py --skip-ocr --spot7
+#   prints id:where; read the header band, or auth7.png when where = auth, blind into spot_check.json
+VBCP_DIR=data/private/vbcp7 uv run python audits/real_scans/run_scans.py --skip-ocr --confirm7 --md audits/real_scans/RESULTS_v7.md
 ```
