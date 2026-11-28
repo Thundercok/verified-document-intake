@@ -268,6 +268,37 @@ ground truth.
     ("…/QH15") reads 0.0% and of a Standing Committee resolution 10.0%. The format checks let 61
     of 428 wrong reads through (upper bound 17.3%). Dropout costs 0 points.
 
+16. **v10 on a tenth batch: certified with 0 wrong, but coverage misses at 64.8%, and the third
+    reader met no error to catch (pre-registered, PREREG.md, [RESULTS_v10.md](RESULTS_v10.md)).**
+    500 documents not seen before (listing dates October–December 2024, older than batches 1–9).
+    v10 is v9 plus rule G: Gemma 4 E4B, a third model family, reads a crop of the "Số: …" line cut
+    from the full-resolution header, and every page-1 or last-page accept is kept only if Gemma's
+    leading number equals the accepted one. No person took part. v10 accepts 324 (**64.8%**, bar
+    70%, 95% interval 60.5–68.9% → **missed**), **0 wrong** against the page, upper bound 0.9% →
+    **GO** on risk; certificate p = 0.039 → **certified**. v9 on the same documents: 326 (65.2%),
+    0 wrong, p = 0.038. The coverage miss was stated as a risk before the run and does not come
+    from G: v9 itself is 4.8 points short, so no rule that only removes accepts could have met
+    the bar.
+    **Rule G.** It removed 2 accepts, both correct: Gemma read "165x" for 1652 and "15.16" for
+    1576. It kept no wrong accept, because v9 made none: this batch had no handwritten number that
+    Vision and Qwen misread the same way, so G was not tested where it matters, as rule B was not
+    on batch 8. In-sample (batches 1–9, set after seeing Gemma's reads) G removes v9's one error
+    and catches 2 of the 3 known shared misreads; on the third ("2615" → 2645, batch 7) Gemma makes
+    the same misread, and only rule B removes it. Cost so far: 0.4 points here, 0.5–1.2 in-sample.
+    **Where coverage went (post hoc, does not count).** National Assembly laws and resolutions: 13
+    of 42 accepted; VBHN 4 of 10; everything else 307 of 448 (68.5%), so even without them the bar
+    would be missed. Scans 60.1% of 371 (batch 9: 70.5% of 417); text-layer PDFs 78.3% of 129.
+    Vision gets both fields right on 66.6% of scans (batch 9: 73.4% of all documents).
+    **Truth.** No accept disagreed with the listing, so nothing was adjudicated. The blind spot
+    check read 129 agreeing accepts (all 25 from the last page, all 4 from the block, 100 random
+    from page 1): 0 mismatches; reads paired with the wrong id were flagged 129 of 129. Six
+    handwritten numbers were re-read zoomed before comparing; one first read as 1555 was 1333.
+    Up to 3.0% of the 195 unsampled page-1 accepts could still hide an error. The reader is the
+    agent that built v10.
+    Vision alone, all 500: number 83.2%, date 75.2%, both 68.6%; laws ("…/QH15") date 0.0% on page
+    1. The format checks let 41 of 384 wrong reads through (upper bound 13.6%). Dropout gains 1.2
+    points on both fields.
+
 **What this means for the plan.** Printed administrative documents are within reach of Apple
 Vision, but their key fields carry handwriting or an overlay, and Vision's misreads there are
 plausible numbers. The design that holds up is the one the verifier already assumes: compare
@@ -297,7 +328,12 @@ texts make up 118 of 500 here and v8 accepts 8 of them. On the ninth batch v9 wo
 text from its block, 35 extra accepts, all correct. But one handwritten number was again misread
 the same way by both engines, and the certificate failed for the second time in three batches.
 Coverage is now a matter of where to read; risk is still a matter of handwriting, and a third
-reader that does not share Vision's and Qwen's misreads is the missing piece.
+reader that does not share Vision's and Qwen's misreads is the missing piece. On the tenth batch
+v10 added that reader (Gemma 4) and was certified with 0 wrong in 324, but the batch held no
+shared misread, so the reader's value out of sample is still unmeasured; in-sample it shares one
+of the three known misreads. Coverage fell to 64.8% with v9 itself at 65.2% on these older
+documents: the binding bar is coverage again, and it moves with the batch (62.6%, 72.4%, 64.8% on
+batches 8–10).
 
 ## Not tested here
 
@@ -315,7 +351,11 @@ reader that does not share Vision's and Qwen's misreads is the missing piece.
   neighbour in the same register carries the same date, so the wrong number breaks no order.
 - **Rule L and rule T at scale.** Batch 9 held 24 last pages with a closing sentence where page 1
   has no date, and 30 National Assembly texts; the new rule B scope dropped 2 accepts. That is
-  little out-of-sample evidence for any of the three.
+  little out-of-sample evidence for any of the three. Batch 10 added 25 rule-L accepts, 0 wrong.
+- **Rule G against a real error out of sample.** Batch 10 had no shared handwritten misread for
+  Gemma to catch. Its digit folds ("†", "‡", "T" → 7, "H" → 4, "g" → 9) were set on batches 1–9;
+  Gemma's other spellings ("165x", "15.16" on batch 10) make G abstain, which costs coverage but
+  not risk.
 - **The body text.** Only the header and the signer block were read.
 
 ## Reproduce
@@ -367,4 +407,14 @@ VBCP_DIR=data/private/vbcp9 uv run python audits/real_scans/run_scans.py --skip-
 VBCP_DIR=data/private/vbcp9 uv run python audits/real_scans/run_scans.py --skip-ocr --spot9
 #   prints id:where; read the header band, auth7.png, or the whole last page (where = passed) blind
 VBCP_DIR=data/private/vbcp9 uv run python audits/real_scans/run_scans.py --skip-ocr --confirm9 --md audits/real_scans/RESULTS_v9.md
+# tenth batch (v10): as for batch 9, then the third reader on the number line
+swiftc -O audits/real_scans/vision_boxes.swift -o audits/real_scans/work/vision_boxes
+#   vision_boxes on every pages/NNN/head.png -> data/private/vbcp10/boxes.jsonl
+VBCP_DIR=data/private/vbcp10 uv run python audits/real_scans/third_reader.py crop
+VBCP_DIR=data/private/vbcp10 uv run python audits/real_scans/run_scans.py --skip-ocr --gemma-paths > gemma_paths.txt
+#   ollama serving gemma4:e4b (id eb2177adf764) on localhost:11434
+VBCP_DIR=data/private/vbcp10 uv run python audits/real_scans/third_reader.py read gemma_paths.txt
+VBCP_DIR=data/private/vbcp10 uv run python audits/real_scans/run_scans.py --skip-ocr --to-adjudicate10
+VBCP_DIR=data/private/vbcp10 uv run python audits/real_scans/run_scans.py --skip-ocr --spot10
+VBCP_DIR=data/private/vbcp10 uv run python audits/real_scans/run_scans.py --skip-ocr --confirm10 --md audits/real_scans/RESULTS_v10.md
 ```
