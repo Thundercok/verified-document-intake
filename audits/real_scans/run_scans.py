@@ -163,9 +163,9 @@ HOMOGLYPHS = str.maketrans("АВЕКМНОРСТХ", "ABEKMHOPCTX")  # Cyrillic 
 FOLD = str.maketrans("ĐÐđ", "DDd")  # Qwen often drops the stroke of Đ
 
 
-def read_numbers4(text: str) -> list[str]:
+def read_numbers4(text: str, so: re.Pattern = SO_RE) -> list[str]:
     t = DOTS.sub("", unicodedata.normalize("NFC", text))
-    for at in SO_RE.finditer(t):
+    for at in so.finditer(t):
         seg = re.sub(r"\s*([/\-])\s*", r"\1", t[at.end() : at.end() + 50])
         out = []
         for s in dict.fromkeys((seg, re.sub(r"(?<=\d)\s+(?=\d)", "", seg))):
@@ -228,9 +228,9 @@ def read_v4(text: str, qtexts: list[str]) -> tuple[str | None, tuple[int, int, i
     return None, d
 
 
-def qwen_number(qtext: str) -> str | None:
+def qwen_number(qtext: str, so: re.Pattern = SO_RE) -> str | None:
     lines = [x.strip() for x in qtext.splitlines() if x.strip()]
-    return canon((read_numbers4("Số: " + lines[0]) or [None])[0] or "") or None if lines else None
+    return canon((read_numbers4("Số: " + lines[0], so) or [None])[0] or "") or None if lines else None
 
 
 CODES = {
@@ -582,6 +582,111 @@ def apply_g(where: str, num: str, crop: bool, gemma_text: str | None) -> bool:
     return where == "auth" or (crop and third_ok(num, gemma_text))
 
 
+# --- v11 (written 2026-11-28 after the tenth batch; developed on batches 1-10, 4,226 documents) ---
+# v10 met the certificate on batch 10 but missed coverage (64.8%). Of its 176 rejections, 90 have no
+# page-1 date Vision can parse. Five changes, each found in batch 10's rejections and checked on 1-10:
+# S. "Số" read as capitals and followed by a colon ("SỐ: 1324/QĐ-TTg"; not "QUYẾT ĐỊNH SỐ 963/QĐ-TTg" in
+#    an issuer's name), or with a comma-below S ("Șố"), starts a number too.
+# Y. The year segment is required for the types TT, NĐ, VBHN, TTLT and QHnn only, compared whole:
+#    v6 compared prefixes, so the Prime Minister's letters ("884/TTg-CN") needed a year and failed.
+# E. The e-signature window grows from 14 to 45 days when Vision reads the day as two digits ("04",
+#    "30"): the error the 14 days guard against is a two-digit day read as one ("21" -> 2).
+# P. Rule L also takes "thông qua tại phiên họp ngày …", the closing sentence of the resolutions of
+#    the National Assembly Standing Committee (NQ-UBTVQH15), whose page 1 carries no date.
+# F. When page 1's place-date line is damaged ("ngày 0 5 tháng 11", "tháng1 1", "tháng |1", "ngày//"),
+#    its day and month are read with spaces dropped and "|" "/" "l" "I" "!" as 1, "O" "o" as 0; the
+#    date is used only through accept11 (Qwen's date must equal it), with the 14-day window.
+# Rules B (register order) and G (third reader) run on v11's accepts as in v10.
+SO11_RE = re.compile(r"(?:S[ốôoóồổ6]|s[ốô]|Ș[ốô]|S[ỐÔ](?=\s*:))\s*[:.]?\s*")
+PASSED11_RE = re.compile(
+    r"thông\s*qua\s*(?:tại\s*phiên\s*họp\s*)?ngày\s*(\d{1,2})\s*tháng\s*(\d{1,2})\s*năm\s*(\d{4})", re.IGNORECASE
+)
+FDATE_RE = re.compile(r",\s*ngày([^,\n]{0,6}?)tháng([^,\n]{0,6}?)n[ăặắa]m([^,\n]{0,8})", re.IGNORECASE)
+ONE11 = str.maketrans({"|": "1", "/": "1", "l": "1", "I": "1", "!": "1", "O": "0", "o": "0"})
+
+
+def checks_pass11(num: str | None, d: tuple[int, int, int] | None) -> bool:
+    """checks_pass6 with the type compared whole (rule Y)."""
+    if not checks_pass(num, d):
+        return False
+    parts = num.split("/")  # type: ignore[union-attr]
+    kind = parts[-1].split("-")[0]
+    if kind == "VBHN" and len(parts) == 2:
+        return len(parts[0]) <= 4
+    has_year = len(parts) >= 3 and re.fullmatch(r"\d{4}", parts[1]) is not None
+    return has_year or not (kind in ("TT", "NĐ", "VBHN", "TTLT") or re.fullmatch(r"QH\d*", kind))
+
+
+def emblem_ok11(text: str, d: tuple[int, int, int]) -> bool:
+    """Rule E: 45 days when the place-date line writes the day with two digits, else 14."""
+    m = DATE2_RE.search(DOTS.sub("", unicodedata.normalize("NFC", text)))
+    return emblem_ok(text, d, EMBLEM_DAYS_L if m and len(m.group(1)) == 2 else EMBLEM_DAYS)
+
+
+def passed_date11(text: str | None) -> tuple[int, int, int] | None:
+    hits = PASSED11_RE.findall(DOTS.sub("", unicodedata.normalize("NFC", text or "")))
+    return tuple(int(g) for g in hits[-1]) if hits else None  # type: ignore[return-value]
+
+
+def read_date_f(text: str) -> tuple[int, int, int] | None:
+    """Rule F: the place-date line with damaged digits, or None."""
+    m = FDATE_RE.search(DOTS.sub("", unicodedata.normalize("NFC", text)))
+    if not m:
+        return None
+
+    def part(s: str) -> int | None:
+        s = re.sub(r"\s+", "", s).translate(ONE11)
+        return int(s) if re.fullmatch(r"\d{1,2}", s) else None
+
+    dd, mm = part(m.group(1)), part(m.group(2))
+    y = re.match(r"\s*'?\s*(\d)\s*(\d)\s*(\d)\s*(\d)", m.group(3))
+    return (dd, mm, int("".join(y.groups()))) if dd is not None and mm is not None and y else None
+
+
+def accept11(
+    text: str, q: str | None, vbhn_only: bool, d: tuple[int, int, int] | None, qd: tuple | None, window: str
+) -> str | None:
+    """accept9 with rules S and Y; window: "E" (rule E), "14" or "45" days."""
+    if q is None or d is None or qd not in (d, (d[1], d[0], d[2])):
+        return None
+    if not (emblem_ok11(text, d) if window == "E" else emblem_ok(text, d, int(window))):
+        return None
+    cands = [n for n in read_numbers4(text, SO11_RE) if checks_pass11(n, d)]
+    if len(cands) != 1:
+        return None
+    if vbhn_only and not cands[0].split("/")[-1].startswith("VBHN"):
+        return None
+    return merge9(cands[0], qwen_number(q, SO11_RE))
+
+
+def read_v11(
+    text: str, q: str | None, atext: str | None, aq: str | None, ptext: str | None, pq: str | None
+) -> tuple[str | None, tuple | None, str]:
+    """read_v9 with rules S, Y, E, P and F. where: "page1", "fuzzy", "auth", "passed" or ""."""
+    qlines = [x.strip() for x in (q or "").splitlines() if x.strip()]
+    qd = qwen_date(qlines[1] if len(qlines) > 1 else None)
+    d = read_date2(text)
+    n = accept11(text, q, False, d, qd, "E")
+    if n:
+        return n, d, "page1"
+    if d is None and (fd := read_date_f(text)) is not None:
+        n = accept11(text, q, False, fd, qd, "14")
+        if n:
+            return n, fd, "fuzzy"
+    if atext is not None and aq is not None:
+        alines = [x.strip() for x in aq.splitlines() if x.strip()]
+        d2 = read_date2(atext)
+        n2 = accept11(atext, aq, True, d2, qwen_date(alines[1] if len(alines) > 1 else None), "E")
+        if n2:
+            return n2, d2, "auth"
+    if d is None and ptext is not None and pq is not None:
+        d3 = passed_date11(ptext)
+        n3 = accept11(text, q, False, d3, qwen_date(pq), str(EMBLEM_DAYS_L))
+        if n3:
+            return n3, d3, "passed"
+    return None, d, ""
+
+
 def seal_box(rgb: np.ndarray) -> tuple[int, int, int, int] | None:
     """Bounding box of the largest blob of red ink, grown to take in the signer's title."""
     red = red_mask(rgb[::4, ::4])
@@ -709,6 +814,10 @@ def main() -> None:
     ap.add_argument("--confirm10", action="store_true", help="add the tenth-batch (v10) verdicts of PREREG.md")
     ap.add_argument("--to-adjudicate10", action="store_true", help="v10 or v9 accepts that differ from the listing")
     ap.add_argument("--spot10", action="store_true", help="the v10-accepted ids to read blind (PREREG)")
+    ap.add_argument("--gemma-paths11", action="store_true", help="v11: num.png of v9 or v11 page-1 accepts")
+    ap.add_argument("--confirm11", action="store_true", help="add the eleventh-batch (v11) verdicts of PREREG.md")
+    ap.add_argument("--to-adjudicate11", action="store_true", help="v11 or v9 accepts that differ from the listing")
+    ap.add_argument("--spot11", action="store_true", help="the v11-accepted ids to read blind (PREREG)")
     args = ap.parse_args()
     listing = json.loads((PRIV / "docs.json").read_text(encoding="utf-8"))
     ids = sorted(int(p.stem) for p in (PRIV / "pdf").glob("*.pdf"))
@@ -766,9 +875,9 @@ def main() -> None:
     if args.passed_paths:  # page 1 gives no date and Vision finds the closing sentence on the last page
         for r in recs:
             d = PRIV / "pages" / f"{r['id']:03d}"
-            if read_date2(ocr["V"].get(str(d / "head.png"), "")) is None and passed_date(
+            if read_date2(ocr["V"].get(str(d / "head.png"), "")) is None and passed_date11(
                 ocr["V"].get(str(d / "plast.png"))
-            ):
+            ):  # v11 (rule P): a superset of v9's pages
                 print(d / "plast_small.png")
         return
     adj = (
@@ -782,7 +891,13 @@ def main() -> None:
         truth = listing[r["id"]]
         tn = canon(truth["number"])
         td = tuple(int(x) for x in truth["date"].split("/"))
-        row = {"id": r["id"], "kind": tn.split("/")[-1].split("-")[0], "scan": not r["text_layer"], "r": r}
+        row = {
+            "id": r["id"],
+            "kind": tn.split("/")[-1].split("-")[0],
+            "tail": tn.split("/")[-1],
+            "scan": not r["text_layer"],
+            "r": r,
+        }
         for e in ("V", "T"):
             for v in ("raw", "drop"):
                 text = ocr[e].get(str(d / ("head.png" if v == "raw" else "head_drop.png")), "")
@@ -902,6 +1017,21 @@ def main() -> None:
             "gemma_read": str(d / "num.png") in gemma,
             "veto": False,
         }
+        n11, d11, where11 = read_v11(text, q, at7, aq7, pt, pq)  # rules B and G below
+        row["v11"] = {
+            "num": n11,
+            "date": d11,
+            "where": where11,
+            "register": False,
+            "crop": crop,
+            "gemma": row["v10"]["gemma"],
+            "veto": False,
+            "passed": read_date2(text) is None and passed_date11(pt) is not None,
+            "passed_qwen": pq is not None,
+            "ok_listing": (n11, d11) == (truth4(truth["number"]), td),
+            "ok_page": (n11, d11) == (pn, pd),
+            "adjudicated": bool(page),
+        }
         row["layer"] = {"num": r.get("layer_num"), "date": r.get("layer_date")}
         row["layer"]["num_ok"] = row["layer"]["num"] == tn
         row["layer"]["date_ok"] = tuple(row["layer"]["date"] or ()) == td
@@ -919,10 +1049,15 @@ def main() -> None:
         if x["id"] in dropped9:
             x["v9"].update(num=None, register=True, register_num=x["v9"]["num"])
             x["v10"].update(num=None, register=True, register_num=x["v10"]["num"])
+    dropped11 = register_drop9([(x["id"], x["v11"]["num"], x["v11"]["date"]) for x in rows if x["v11"]["num"]])
+    for x in rows:
+        if x["id"] in dropped11:
+            x["v11"].update(num=None, register=True, register_num=x["v11"]["num"])
     for x in rows:  # rule G, after rule B
-        v = x["v10"]
-        if v["num"] and not apply_g(v["where"], v["num"], v["crop"], v["gemma"]):
-            v.update(num=None, veto=True, veto_num=v["num"])
+        for k in ("v10", "v11"):
+            v = x[k]
+            if v["num"] and not apply_g(v["where"], v["num"], v["crop"], v["gemma"]):
+                v.update(num=None, veto=True, veto_num=v["num"])
     (PRIV / "scan_rows.json").write_text(
         json.dumps(
             [{**{k if isinstance(k, str) else "_".join(k): v for k, v in x.items()}} for x in rows],
@@ -998,6 +1133,26 @@ def main() -> None:
         pick = rest + random.Random(SPOT_SEED10).sample(page1, min(SPOT_N, len(page1)))
         print(" ".join(f"{i}:{where[i]}" for i in pick))
         return
+    if args.gemma_paths11:  # PREREG "Eleventh batch": the number line of every v9 or v11 page-1 accept
+        for x in rows:
+            if x["v10"]["crop"] and any(
+                (x[k]["num"] or x[k].get("register_num")) and x[k]["where"] != "auth" for k in ("v9", "v11")
+            ):
+                print(PRIV / "pages" / f"{x['id']:03d}" / "num.png")
+        return
+    if args.to_adjudicate11:  # v11 or v9 accepts (v10's are a subset of v9's) that differ from the listing
+        print(
+            " ".join(str(x["id"]) for x in rows if any(x[k]["num"] and not x[k]["ok_listing"] for k in ("v11", "v9")))
+        )
+        return
+    if args.spot11:  # PREREG "Eleventh batch": every agreeing accept not from page 1's clean date, 100 from page 1
+        agree = sorted(x["id"] for x in rows if x["v11"]["num"] and x["v11"]["ok_listing"])
+        where = {x["id"]: x["v11"]["where"] for x in rows}
+        rest = [i for i in agree if where[i] in ("auth", "passed", "fuzzy")]
+        page1 = [i for i in agree if where[i] == "page1"]
+        pick = rest + random.Random(SPOT_SEED11).sample(page1, min(SPOT_N, len(page1)))
+        print(" ".join(f"{i}:{where[i]}" for i in pick))
+        return
     text = report(rows) + (confirm(rows) if args.confirm else []) + (confirm3(rows) if args.confirm3 else [])
     text += confirm4(rows) if args.confirm4 else []
     text += confirm5(rows) if args.confirm5 else []
@@ -1006,6 +1161,7 @@ def main() -> None:
     text += confirm8(rows) if args.confirm8 else []
     text += confirm9(rows) if args.confirm9 else []
     text += confirm10(rows) if args.confirm10 else []
+    text += confirm11(rows) if args.confirm11 else []
     print("\n".join(text))
     if args.md:
         Path(args.md).write_text("\n".join(text) + "\n", encoding="utf-8")
@@ -1130,6 +1286,7 @@ SPOT_SEED7 = 20261129
 SPOT_SEED8 = 20261130
 SPOT_SEED9 = 20261201
 SPOT_SEED10 = 20261202
+SPOT_SEED11 = 20261203
 
 
 def confirm5(rows: list[dict]) -> list[str]:
@@ -1509,6 +1666,104 @@ def confirm10(rows: list[dict]) -> list[str]:
         f"{sum(x['v10']['adjudicated'] for x in acc)} accepted documents were adjudicated."
     )
     return out
+
+
+def confirm11(rows: list[dict]) -> list[str]:
+    """Verdicts of PREREG.md, "Eleventh batch (v11)", on this batch alone."""
+    missing = [x["id"] for x in rows if not x["v3"]["qwen"]]
+    missing += [x["id"] for x in rows if x["v9"]["auth"] and not x["v9"]["auth_qwen"]]
+    missing += [x["id"] for x in rows if x["v11"]["passed"] and not x["v11"]["passed_qwen"]]
+    if missing:
+        raise SystemExit(f"no Qwen read for {len(missing)} crops (first: {missing[:5]}); run vlm_ocr.py first")
+    no_g = [
+        x["id"]
+        for x in rows
+        if x["v10"]["crop"]
+        and not x["v10"]["gemma_read"]
+        and any((x[k]["num"] or x[k].get("register_num")) and x[k]["where"] != "auth" for k in ("v9", "v11"))
+    ]
+    if no_g:
+        raise SystemExit(f"no Gemma read for {len(no_g)} crops (first: {no_g[:5]}); run third_reader.py read first")
+    spot = PRIV / "spot_check.json"
+    if not spot.exists():
+        raise SystemExit("no spot_check.json: the blind spot check is part of the truth (PREREG)")
+    n_spot = sum(1 for k in json.loads(spot.read_text(encoding="utf-8")) if not k.startswith("_"))
+    n = len(rows)
+    out = ["", "## 15. Eleventh batch: pre-registered verdicts for v11", ""]
+    out += [
+        'PREREG.md, "Eleventh batch (v11)": v11 frozen at the commit that added that section, documents',
+        "not seen before. Truth is the page: the listing, except where a reader who saw only the page image",
+        "corrected it (`adjudication.json`): every accepted document that disagrees with the listing, and",
+        f"the hidden errors found by a blind read of {n_spot} accepted documents that agree with it: every",
+        "one accepted from the block, the last page or a damaged date line, and 100 random ones from page 1.",
+        "",
+    ]
+    for name, key in (("Primary, v11", "v11"), ("Report only, v10", "v10")):
+        a = [x[key] for x in rows if x[key]["num"]]
+        w = sum(not x["ok_page"] for x in a)
+        ub = cp_upper(w, len(a)) if a else 1.0
+        p = binom_cdf(w, len(a), ALPHA) if a else 1.0
+        verdict = "GO" if ub <= 0.03 else (f"KILL {key}" if ub > 0.05 else "ITERATE")
+        cert = len(a) >= 230 and p <= DELTA
+        cov = len(a) / n
+        lo, hi = wilson(len(a), n)
+        out.append(
+            f"- {name}: {len(a)} of {n} accepted ({pct(cov)}, Wilson 95% {pct(lo)}–{pct(hi)}, bar 70% → "
+            f"{'met' if cov >= 0.7 else 'missed'}), {w} wrong against the page, 95% upper bound {pct(ub)} → "
+            f"**{verdict}**; certificate at α = {pct(ALPHA)}, δ = {DELTA}: p = {p:.3f} → "
+            f"**{'certified' if cert else 'not certified'}**."
+        )
+    acc = [x for x in rows if x["v11"]["num"]]
+    for lab, g in (
+        ("scans", [x for x in rows if x["scan"]]),
+        ("PDFs with a text layer", [x for x in rows if not x["scan"]]),
+        ("VBHN (listing)", [x for x in rows if x["kind"] == "VBHN"]),
+        ("laws and resolutions of the National Assembly (listing)", [x for x in rows if "QH" in x["kind"]]),
+        ("resolutions of its Standing Committee (listing)", [x for x in rows if "UBTVQH" in x["tail"]]),
+        ("everything else (listing)", [x for x in rows if x["kind"] != "VBHN" and "QH" not in x["kind"]]),
+    ):
+        ga = [x for x in g if x["v11"]["num"]]
+        out.append(
+            f"- v11 on {lab}: {len(ga)} of {len(g)} accepted ({pct(len(ga) / len(g)) if g else '—'}), "
+            f"{sum(not x['v11']['ok_page'] for x in ga)} wrong against the page."
+        )
+    for lab, where in (
+        ("page 1, date line parsed as before", "page1"),
+        ("page 1, damaged date line (rule F)", "fuzzy"),
+        ("the authentication block", "auth"),
+        ("the last page (rules L and P)", "passed"),
+    ):
+        g = [x for x in acc if x["v11"]["where"] == where]
+        out.append(
+            f"- Accepted from {lab}: {len(g)}, {sum(not x['v11']['ok_page'] for x in g)} wrong against the page."
+        )
+    gain = [x for x in acc if not x["v10"]["num"]]
+    lost = [x for x in rows if x["v10"]["num"] and not x["v11"]["num"]]
+    out.append(
+        f"- v11 accepts that v10 rejected: {len(gain)}, {sum(not x['v11']['ok_page'] for x in gain)} wrong; "
+        f"v10 accepts that v11 rejects: {len(lost)}, {sum(not x['v10']['ok_page'] for x in lost)} wrong."
+    )
+    veto = [x for x in rows if x["v11"]["veto"]]
+    reg = [x for x in rows if x["v11"]["register"]]
+    out.append(
+        f"- Removed by rule G: {len(veto)}, of which {sum(not x['v11']['ok_page'] for x in veto)} wrong; "
+        f"by rule B: {len(reg)}, of which {sum(not x['v11']['ok_page'] for x in reg)} wrong "
+        "(ok_page is scored on the read before the removal)."
+    )
+    out.append(
+        f"- Against the listing as published: {sum(not x['v11']['ok_listing'] for x in acc)} wrong of {len(acc)}; "
+        f"{sum(x['v11']['adjudicated'] for x in acc)} accepted documents were adjudicated."
+    )
+    return out
+
+
+def wilson(k: int, n: int, z: float = 1.959964) -> tuple[float, float]:
+    if n == 0:
+        return 0.0, 1.0
+    p = k / n
+    c = (p + z * z / (2 * n)) / (1 + z * z / n)
+    h = z * (p * (1 - p) / n + z * z / (4 * n * n)) ** 0.5 / (1 + z * z / n)
+    return c - h, c + h
 
 
 def lead_g(x: dict) -> int | None:

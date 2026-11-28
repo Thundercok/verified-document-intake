@@ -528,3 +528,82 @@ that built v10; it sees an image and nothing else: no engine read, no listing va
    number read, another number read), with their errors; v9 errors G keeps; accepts by rule L and
    from the block, with their errors; scans versus PDFs; VBHN, National Assembly documents, the
    rest; errors against the listing as published; reader errors in the spot check.
+
+## Eleventh batch (v11) (written 2026-11-28, before listing or downloading it)
+
+v10 on batch 10: 324 of 500 accepted (64.8%, bar missed), 0 wrong against the page, upper bound
+0.9%, certificate p = 0.039, certified. Of its 176 rejections, 90 have no page-1 date Vision can
+parse, 26 a page-1 date Qwen reads otherwise, 25 no number candidate, 20 an e-signature more than
+14 days after the date, 13 a number Qwen reads otherwise, 2 a veto by rule G.
+
+v11 (`read_v11`, `accept11`) is v10 with five changes, each found in batch 10's rejections:
+- **S.** "Số" read in capitals and followed by a colon ("SỐ: 1324/QĐ-TTg"), or with a comma-below S
+  ("Șố"), starts a number too (`SO11_RE`). Capitals without a colon do not: "QUYẾT ĐỊNH SỐ 963/QĐ-TTg"
+  in an issuer's name (batch 10, id 857) would be taken for the number.
+- **Y.** The year segment is required for the types TT, NĐ, VBHN, TTLT and QHnn compared whole
+  (`checks_pass11`); v6 compared prefixes, so the Prime Minister's letters ("884/TTg-CN") failed.
+- **E.** The e-signature window is 45 days, not 14, when Vision reads the place-date line's day as
+  two characters (`emblem_ok11`). In batches 1–10 the 14-day window caught 6 wrong dates; the 2 with
+  a gap of 15–45 days are a two-digit day read as one ("21" → 2, "31" → 3), which E keeps at 14.
+- **P.** Rule L also takes "thông qua tại phiên họp ngày …" (`passed_date11`), the closing sentence of
+  the resolutions of the National Assembly Standing Committee (NQ-UBTVQH15), whose page 1 has no date.
+  `--passed-paths` lists these last pages for Qwen with the unchanged `passed_prompt.txt`.
+- **F.** When page 1's place-date line does not parse, it is read again with spaces dropped inside the
+  day and month and "|" "/" "l" "I" "!" read as 1, "O" "o" as 0 (`read_date_f`: "ngày 0 5", "tháng1 1",
+  "tháng |1", "ngày//"); the year must be four digits split only by spaces. This date is accepted only
+  through `accept11`: Qwen's page-1 date must equal it, the window is 14 days. where = "fuzzy".
+Rule B (`register_drop9`) and rule G (`apply_g`, Gemma on `num.png`) run on v11's accepts as in v10;
+"fuzzy" accepts are page-1 accepts for G.
+
+In-sample (batches 1–10, 4,226 documents; truth = listing except `adjudication.json`): IN_SAMPLE.
+Every rule was written after reading batch 10's rejections, and S was narrowed after it cost one
+accept on batch 10. Reads added for this check: Qwen on 25 last pages (rule P), Gemma on 206 crops
+(new page-1 accepts), merged into each batch's `qwen_passed.jsonl` and `gemma_num.jsonl`. One new
+accept disagreed with the listing (batch 10, id 774): the header reads "24/2024/NQ-HĐND", issuer
+HĐND tỉnh Ninh Bình; the listing's "NQ-UBND" is wrong; added to batch 10's `adjudication.json`.
+
+| batch | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | all |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| v10 accepted | 82.9% | 85.0% | 72.6% | 82.8% | 66.6% | 64.2% | 73.2% | 70.6% | 71.2% | 64.8% | 3,038 |
+| v11 accepted | 86.5% | 87.6% | 80.6% | 85.2% | 70.0% | 66.2% | 78.4% | 72.6% | 76.4% | 76.6% | 3,237 |
+
+- Wrong against the page: v10 0, v11 0. v10 accepts v11 rejects: 0.
+- New accepts by rule alone (each added to v10 by itself): S 44, Y 27, E 63, P 25, F 38; together 199.
+- **Coverage risk, stated before the run:** the in-sample gain is 11.8 points on batch 10, where the
+  rules were found, and rests partly on one cluster there (22 Standing Committee resolutions passed
+  at one session); the other nine batches gain 2.0–8.0 points. A batch with batch 6's mix would
+  still miss the bar. Out of sample, coverage has swung 62.6% → 72.4% → 64.8% over batches 8–10.
+- **Error risk:** E widens the guard that caught 6 wrong dates in-sample, and F reads a date that
+  Vision could not parse; both still need Qwen's date to agree, and F keeps the 14-day window.
+
+v11 is frozen as of the commit that adds this section: `run_scans.py`, `third_reader.py`,
+`vision_boxes.swift`, `issuer_codes9.txt`, `passed_prompt.txt`, `header_prompt.txt`, `vlm_ocr.py`,
+Qwen3.5-4B (MLX 4-bit) at 1240 px, and `gemma4:e4b` as served by the local ollama (model id
+eb2177adf764). Only input paths may change.
+
+**Data.** The batch-9 listing's entries after the last one downloaded for batch 10 (listing index
+> 1139, 222 documents), then vanban.chinhphu.vn listing pages 181–215 fetched after this commit, in
+listing order, without numbers already in batches 1–10: first PDF at most 5 MB, until 500 PDFs are
+downloaded (`data/private/vbcp11`). Qwen reads every `head_small.png`, every `auth7_small.png` and
+the `plast_small.png` of every document `--passed-paths` lists; Gemma reads the `num.png` of every
+document `--gemma-paths11` lists (v9 or v11 page-1 accepts, before rule B).
+
+**Truth: the page, read blind, with no person involved.** As batch 10. All reads are by the agent
+that built v11; it sees an image and nothing else: no engine read, no listing value.
+- Every v11 or v9 accept that disagrees with the listing (`--to-adjudicate11`) is read from the image
+  the accept came from and written to `adjudication.json`. If the image cannot be read with
+  certainty, the listing stands.
+- Spot check (`--spot11`): every v11 accept from the block, the last page, or a damaged date line
+  (where = "fuzzy") that agrees with the listing, and 100 v11 accepts from page 1 that agree with it,
+  drawn by `random.Random(20261203).sample`. Read and checked as batch 10, with the same negative
+  control (the reads rotated onto the wrong ids must all be flagged).
+
+1. **Primary.** v11, wrong against the page among accepted, with its 95% upper bound. GO if ≤ 3%;
+   KILL v11 if > 5%; ITERATE in between.
+2. **Coverage.** Accepted share ≥ 70%, with its Wilson 95% interval.
+3. **Certificate.** On this batch alone, never pooled. Binomial test at α = 1%, δ = 0.1
+   (n ≥ 230).
+4. **Report only.** v10 on the same documents; v11 accepts v10 rejected, and the reverse, with their
+   errors; accepts by where (page1, fuzzy, auth, passed) with their errors; removals by rules B and
+   G; scans versus PDFs; VBHN, National Assembly documents, Standing Committee resolutions, the
+   rest; errors against the listing as published; reader errors in the spot check.
