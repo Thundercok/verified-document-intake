@@ -298,6 +298,49 @@ ground truth.
     Vision alone, all 500: number 83.2%, date 75.2%, both 68.6%; laws ("…/QH15") date 0.0% on page
     1. The format checks let 41 of 384 wrong reads through (upper bound 13.6%). Dropout gains 1.2
     points on both fields.
+17. **v11 on an eleventh batch: coverage met at 79.8% and certified, narrowly, with one wrong
+    accept, "BGDĐT" output as "BGDDT"; the first scoring was itself wrong and is reported below
+    (pre-registered, PREREG.md, [RESULTS_v11.md](RESULTS_v11.md)).** 500 documents not seen
+    before (listing dates July–October 2024). v11 is v10 plus rules S, Y, E, P and F, each found
+    in batch 10's rejections. No person took part. v11 accepts 399 (**79.8%**, 95% interval
+    76.1–83.1% → **met**), **1 wrong** against the page, upper bound 1.2% → **GO**; certificate
+    p = 0.091 → **certified, narrowly**: with one error it needs ≥ 388 accepts and has 399. v10 on
+    the same documents: 362 (72.4%), the same 1 wrong, p = 0.122, not certified. The coverage gain
+    (+7.4 points over v10) is smaller than in-sample on batch 10 (+11.8), as the PREREG warned.
+    **The error (id 203).** Circular 11/2024/TT-BGDĐT: page and listing both print "BGDĐT"; Vision
+    and Qwen both output "BGDDT", so the Đ/D merge had no disagreement to act on. Gemma's read kept
+    the stroke, but rule G compares only the leading number. v9 and v10 make the same error. It is
+    batch 4's "QĐ" → "QD" again: a letter both engines drop, not a handwritten digit.
+    **A scoring fault, found and fixed before this was written.** The first scoring gave v11
+    exactly v10's 362 accepts, 0 gains, which the in-sample check made implausible. Cause: Gemma
+    had read only the 344 crops of v9's reads. The lister of crops for Gemma (`--gemma-paths11`)
+    and the guard in `confirm11` both run after rule G, which turns a read with no Gemma read into
+    a veto, so 40 of v11's 41 new reads were removed for want of an input and neither the lister
+    nor the guard saw them. Both now count vetoed reads (`veto_num`), with a test. Gemma then read
+    the other 155 crops, and the spot sample was drawn again on the corrected accepts, as the
+    PREREG defines it. No rule or threshold changed. The fault could only remove accepts, never
+    add a wrong one; but the rerun was prompted by a number that looked wrong, and a fault that
+    made the result look better might not have been looked for. Batch 10 is not affected: its
+    guard checks v9's reads, which rule G never removes.
+    **Rule B caught an error for the first time out of sample.** Id 6: v11 read "122/QĐ-TTg" for
+    the handwritten 1221 (a digit lost), and rule B removed it from the register order. Gemma read
+    no number on that crop, so G would have removed it too. Without both, v11 would have had 2
+    errors and no certificate. G removed 9 other accepts, all correct.
+    **Where the gains came from.** 37 accepts v10 rejected, 0 wrong; 0 losses. By where: page 1
+    337 (1 wrong), damaged date line (F) 4, block 25, last page (L and P) 33. Post hoc: National
+    Assembly laws and resolutions 17 of 17; Standing Committee resolutions 31 of 39; **VBHN 25 of
+    47 (53.2%)**; everything else 81.9%. Scans 79.3% of 439; text-layer PDFs 83.6% of 61.
+    **Truth.** Two accepts disagreed with the listing: 162 (listing 26/09, page 27/09, so the
+    listing is wrong; adjudicated) and 203 (listing right). Blind spot check: the pre-registered
+    sample of 162 (25 block, 33 last page, 4 damaged date line, 100 random page-1), plus the 65
+    other page-1 ids of the first draw: 227 reads, 0 mismatches; reads paired with the wrong id
+    were flagged 227 of 227. Fifteen handwritten numbers or days were re-read zoomed, four header
+    bands re-cropped. 165 of the 335 agreeing page-1 accepts were read; up to 1.8% of them could
+    still hide an error. The reader is the agent that built v11.
+    Vision alone, all 500: number 84.0%, date 80.0%, both 75.0%; scans both 79.3%. The format
+    checks let 68 of 443 wrong reads through (upper bound 18.5%). Dropout gains 1.8 points on page
+    1, but the signer title under the seal is read less often after it (48 → 44 of 56): §2 KILL,
+    as on batch 10 (83 → 80 of 97).
 
 **What this means for the plan.** Printed administrative documents are within reach of Apple
 Vision, but their key fields carry handwriting or an overlay, and Vision's misreads there are
@@ -333,7 +376,11 @@ v10 added that reader (Gemma 4) and was certified with 0 wrong in 324, but the b
 shared misread, so the reader's value out of sample is still unmeasured; in-sample it shares one
 of the three known misreads. Coverage fell to 64.8% with v9 itself at 65.2% on these older
 documents: the binding bar is coverage again, and it moves with the batch (62.6%, 72.4%, 64.8% on
-batches 8–10).
+batches 8–10). On the eleventh batch v11 read the date in four more places and met both bars:
+79.8% accepted, certified with one error. The margin is 11 accepts. The error is a letter, not a
+digit: both engines dropped the stroke of "Đ", and the one reader that kept it is consulted only
+for the number's leading integer. Risk now has two sources, handwritten digits and dropped
+diacritics, and the third reader is the cheapest check left for both.
 
 ## Not tested here
 
@@ -417,4 +464,12 @@ VBCP_DIR=data/private/vbcp10 uv run python audits/real_scans/third_reader.py rea
 VBCP_DIR=data/private/vbcp10 uv run python audits/real_scans/run_scans.py --skip-ocr --to-adjudicate10
 VBCP_DIR=data/private/vbcp10 uv run python audits/real_scans/run_scans.py --skip-ocr --spot10
 VBCP_DIR=data/private/vbcp10 uv run python audits/real_scans/run_scans.py --skip-ocr --confirm10 --md audits/real_scans/RESULTS_v10.md
+# eleventh batch (v11): as for batch 10; Qwen also reads the last pages --passed-paths lists
+VBCP_DIR=data/private/vbcp11 uv run python audits/real_scans/third_reader.py crop
+#   Gemma on every crop (a superset of --gemma-paths11; rule G only consults the accepts' crops)
+VBCP_DIR=data/private/vbcp11 uv run python audits/real_scans/third_reader.py read
+VBCP_DIR=data/private/vbcp11 uv run python audits/real_scans/run_scans.py --skip-ocr --to-adjudicate11
+VBCP_DIR=data/private/vbcp11 uv run python audits/real_scans/run_scans.py --skip-ocr --spot11
+#   prints id:where; read the header band, auth7.png, or the header band and last page blind
+VBCP_DIR=data/private/vbcp11 uv run python audits/real_scans/run_scans.py --skip-ocr --confirm11 --md audits/real_scans/RESULTS_v11.md
 ```

@@ -57,3 +57,18 @@ def test_read_v11_fuzzy_needs_qwen_to_agree():
     text = "Số: 31 /2024/TT-BYT Hà Nội, ngày 07 tháng1 1 năm 2024 THÔNG TƯ"
     assert R.read_v11(text, "31/2024/TT-BYT\n07/11/2024", None, None, None, None)[2] == "fuzzy"
     assert R.read_v11(text, "31/2024/TT-BYT\n07/01/2024", None, None, None, None)[0] is None
+
+
+def test_confirm11_needs_gemma_for_reads_rule_g_removed():
+    """Batch 11: a v11 read with no Gemma read was vetoed by rule G and slipped past the guard."""
+    import pytest
+
+    row = {
+        "id": 2,
+        "v3": {"qwen": "x"},
+        "v9": {"auth": False, "passed": False, "num": None, "where": "page1"},
+        "v10": {"crop": True, "gemma_read": False},
+        "v11": {"passed": False, "num": None, "veto": True, "veto_num": "1229/QĐ-TTg", "where": "page1"},
+    }
+    with pytest.raises(SystemExit, match="no Gemma read"):
+        R.confirm11([row])

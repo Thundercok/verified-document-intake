@@ -1134,9 +1134,12 @@ def main() -> None:
         print(" ".join(f"{i}:{where[i]}" for i in pick))
         return
     if args.gemma_paths11:  # PREREG "Eleventh batch": the number line of every v9 or v11 page-1 accept
+        # rule G has already run on rows, so a v11 read with no Gemma read yet sits in "veto_num": batch 11's
+        # first list missed every such read (40 of them), and Gemma read only v9's 344 crops.
         for x in rows:
             if x["v10"]["crop"] and any(
-                (x[k]["num"] or x[k].get("register_num")) and x[k]["where"] != "auth" for k in ("v9", "v11")
+                (x[k]["num"] or x[k].get("register_num") or x[k].get("veto_num")) and x[k]["where"] != "auth"
+                for k in ("v9", "v11")
             ):
                 print(PRIV / "pages" / f"{x['id']:03d}" / "num.png")
         return
@@ -1680,7 +1683,12 @@ def confirm11(rows: list[dict]) -> list[str]:
         for x in rows
         if x["v10"]["crop"]
         and not x["v10"]["gemma_read"]
-        and any((x[k]["num"] or x[k].get("register_num")) and x[k]["where"] != "auth" for k in ("v9", "v11"))
+        # rule G has run by now: a read it removed sits in "veto_num". Batch 11's first scoring missed these
+        # (Gemma had read only v9's 344 crops), and 40 v11 reads were removed for want of a Gemma read.
+        and any(
+            (x[k]["num"] or x[k].get("register_num") or x[k].get("veto_num")) and x[k]["where"] != "auth"
+            for k in ("v9", "v11")
+        )
     ]
     if no_g:
         raise SystemExit(f"no Gemma read for {len(no_g)} crops (first: {no_g[:5]}); run third_reader.py read first")
