@@ -4,6 +4,16 @@ Research and engineering repository for **deterministic PDF/OCR intake, field-le
 
 ---
 
+## Contents
+
+- [Status: what does not work yet](#0-status-what-does-not-work-yet)
+- [Problem Formulation](#1-problem-formulation)
+- [Design Principles](#2-design-principles)
+- [Repository Structure](#3-repository-structure)
+- [Quickstart](#4-quickstart)
+
+---
+
 ## 0. Status: what does not work yet
 
 Updated after every audit run. Bad numbers go here first. Last update: 2026-11-28.
